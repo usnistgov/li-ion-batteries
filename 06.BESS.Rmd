@@ -1,0 +1,110 @@
+---
+title: "Batteries"
+subtitle: "Battery Energy Storage Systems"
+output: html_document
+date: "2024-12-13"
+---
+
+# BESS
+
+```{r setup-06, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(rstan)
+
+keep <- ls()
+
+if(! exists("csv_dir")){
+  csv_dir <- "csv/"
+}
+if(! exists("intmdt_dir")){
+  intmdt_dir <- "rdata/"
+}
+
+ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
+if("bess.rdata" %in% tolower(ff)){
+  fg <- "bess.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+  load(paste0(intmdt_dir, fg))
+}
+rm(ff, fg)
+
+ keep2 <- c("bess", "bess.model", "figs")
+```
+
+```{r bess}
+# This table was downloaded from:
+# https://storagewiki.epri.com/resources/assets/BESS_Failure_Database/Failure_DB_List.csv
+
+bess <- paste0(csv_dir, "BESS Failure.csv") %>% read.csv()
+```
+
+```{r bess-plot}
+# Data source for this is recorded above
+
+figs$figure.40 <- merge(expand.grid(quarter=(1:4 - 0.5) / 4, year=2011:2025) %>% 
+                          mutate(q=year + quarter),
+                        bess %>% 
+        mutate(q=lubridate::year(Event.Date) + (lubridate::quarter(Event.Date)-0.5)/4) %>% group_by(q) %>%
+                 summarize(n=n()), all.x=T) %>% 
+  ggplot() + aes(x=q, y=n) + geom_col()
+print(figs$figure.40)
+```
+
+
+```{r bess-est}
+bess.tab <- merge(expand.grid(quarter=(1:4 - 0.5) / 4, year=2011:2025) %>% 
+                    mutate(q=year + quarter),
+                  bess %>% mutate(q=lubridate::year(Event.Date) +
+                                    (lubridate::quarter(Event.Date)-0.5)/4) %>% 
+                    group_by(q) %>% summarize(n=n()), all.x=T) %>% 
+  filter(year >= 2018, year < 2025) %>% mutate(n=ifelse(is.na(n), 0, n))
+
+fn <- function(lambda, counts){
+   sum(counts * dpois(0:7, lambda, log=T))
+}
+
+bess.tab1 <- bess.tab %>% with(table(n)) %>% as.vector() %>% data.frame(n=0:7, count=.)
+
+bess.model <- list(trend=glm(n ~ I(q - 2025), data=bess.tab, family=quasipoisson),
+                   no_trend=glm(n ~ 1, data=bess.tab, family=quasipoisson),
+                   maxlik=maxLik(fn, start=c(lambda=3), counts=bess.tab1$count))
+
+bess.tab1$model <- with(bess.tab1, sum(count) * dpois(n, bess.model$maxlik$estimate))
+
+# bess.tab1 %>% knitr::kable()
+```
+
+This table (which is no longer there) and the next plot are probably superfluous. 
+They just show that the
+model fits well. The model is that events follow a Poisson process with 
+`r formatC(bess.model$maxlik$estimate, digits=3)` &pm; 
+`r formatC(qnorm(0.975) * as.vector(sqrt(-1/bess.model$maxlik$hessian)), digits=2)`. 
+The value is the best fit, estimated using maximum likelihood.
+
+I ran two more models, both glm models, one of which replicated the maximum
+likelihood model, and the second of which added a trend. The constant glm model
+gave the same results as the maximum likelihood model, and the trend was not
+statistically significant.
+
+Number of incidents over time is shown in the figure below.
+
+```{r bess.time}
+figs$figure.41 <- bess.tab %>% ggplot() + aes(x=q, y=n) + geom_point() + geom_line() +
+             xlab("Time") + ylab("Count") + scale_x_continuous(breaks=2010:2025) + 
+             theme_bw()
+print(figs$figure.41)
+```
+
+```{r bess-plot2}
+figs$figure.42 <- bess.tab1 %>% ggplot() + aes(x=n, y=count) + geom_col() + geom_line(aes(y=model))
+print(figs$figure.42)
+```
+
+```{r cleanup-06}
+save(list=intersect(keep2, ls()), file=paste0(intmdt_dir, "bess.RData"))
+rm(list=setdiff(ls(), keep))
+```

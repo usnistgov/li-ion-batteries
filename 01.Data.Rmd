@@ -1,0 +1,523 @@
+---
+title: "Batteries"
+subtitle: "Data"
+output: html_document
+date: "2024-12-13"
+---
+
+# Data
+
+```{r setup-01, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+
+keep <- ls()
+
+do.sql <- FALSE
+if(exists("ipsdi.nfirs") & ("RPostgreSQL" %in% row.names(installed.packages()))){ 
+  if(! is.null(ipsdi.nfirs)){
+#    library(RPostgreSQL)
+#    do.sql <- TRUE
+  }
+} else {
+  ipsdi.nfirs <- NULL
+}
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(sf)
+
+if(! exists("csv_dir")){
+  csv_dir <- "csv/"
+}
+if(! exists("intmdt_dir")){
+  intmdt_dir <- "rdata/"
+}
+
+# SQL Queries into NFIRS are from IPSDI
+cpsc_url <- "https://www.saferproducts.gov/"
+tesla_fires <- "https://www.tesla-fire.com/"
+```
+
+```{sql a, connection=ipsdi.nfirs, output.var="data.summ", eval=do.sql}
+/*
+  This provides summary information about the number of battery fires in NFIRS,
+  relative to the total number of fires, and some idea of the casualty rate, 
+  again in comparison to that of non-battery fires.
+
+   This data, as will all SQL queries in this document, comes from the 
+   International Public Safety Data Institute.                        */
+with it as (
+  SELECT DISTINCT 
+    code_value as v,
+	code_descr as d
+  FROM codelookup
+  WHERE fieldid ~* 'inc_type'
+)
+
+SELECT
+  extract(year from inc_date) as year,
+  substring(inc_type from 1 for 2) as inc_type,
+  it.d as type_descr,
+  count(*) as fires,
+  sum(
+	  CASE 
+	    WHEN coalesce(ff_death, 0) + coalesce(ff_inj, 0) + coalesce(oth_death, 0) + coalesce(oth_inj, 0) > 0 THEN 1
+		ELSE 0
+	  END
+  ) as casualties,
+  sum(
+	  CASE 
+	    WHEN coalesce(ff_death, 0) + coalesce(oth_death, 0) > 0 THEN 1
+		ELSE 0
+	  END
+  ) as deaths,
+  sum(
+  	CASE 
+	  WHEN equip_inv = '229' THEN 1
+	  ELSE 0
+  	END
+  ) as battery_fires,
+  sum(
+	  CASE 
+	    WHEN
+		  equip_inv = '229' AND
+		  coalesce(ff_death, 0) + coalesce(ff_inj, 0) + coalesce(oth_death, 0) + coalesce(oth_inj, 0) > 0 THEN 1
+		ELSE 0
+	  END
+  ) as battery_casualties,
+  sum(
+	  CASE 
+	    WHEN
+		  equip_inv = '229' AND
+		  coalesce(ff_death, 0) + coalesce(oth_death, 0) > 0 THEN 1
+		ELSE 0
+	  END
+  ) as battery_deaths,
+
+	sum(
+		CASE
+			WHEN fire_sprd in ('1', '2', '3', '4', '5') THEN 1
+			ELSE 0
+		END
+	) as sev,
+	sum(
+		CASE
+			WHEN fire_sprd in ('2', '3', '4', '5') THEN 1
+			ELSE 0
+		END
+	) as room,
+	sum(
+		CASE
+			WHEN fire_sprd in ('3', '4', '5') THEN 1
+			ELSE 0
+		END
+	) as struc,
+	sum(
+		CASE
+			WHEN fire_sprd in ('5') THEN 1
+			ELSE 0
+		END
+	) as beyond	
+
+FROM fireincident LEFT JOIN basicincident USING (state, fdid, inc_date, inc_no, exp_no)
+                  LEFT JOIN it ON (substring(inc_type from 1 for 2) = it.v)
+WHERE inc_type ~* '^1'
+GROUP BY
+  extract(year from inc_date),
+  substring(inc_type from 1 for 2),
+  it.d
+ORDER BY
+  extract(year from inc_date),
+  substring(inc_type from 1 for 2),
+  it.d
+```
+
+```{sql selected, connection=ipsdi.nfirs, output.var="selected", eval=do.sql}
+SELECT 
+  state,
+  fdid,
+  fd_name,
+  extract(year from inc_date) as year,
+  CASE
+    WHEN equip_inv = '229' THEN 'Battery' 
+    ELSE 'Other' 
+  END as type,
+  count(*) as total,
+  sum(
+    CASE 
+      WHEN inc_type ~* '^11' THEN 1
+      ELSE 0
+    END
+  ) AS structure,
+  sum(
+    CASE 
+      WHEN inc_type ~* '^13' THEN 1
+      ELSE 0
+    END
+  ) AS mobile,
+  sum(
+    CASE 
+      WHEN inc_type ~* '^12' THEN 1
+      ELSE 0
+    END
+  ) AS mh, 
+  sum(
+    CASE 
+      WHEN inc_type ~* '^14' THEN 1
+      ELSE 0
+    END
+  ) AS veg,
+  sum(
+    CASE 
+      WHEN inc_type ~* '^15' THEN 1
+      ELSE 0
+    END
+  ) AS rubbish,
+  sum(
+    CASE 
+      WHEN inc_type ~* '^16' THEN 1
+      ELSE 0
+    END
+  ) AS special,
+  sum(
+    CASE 
+      WHEN inc_type ~* '^17' THEN 1
+      ELSE 0
+    END
+  ) AS crop,
+  sum(
+    CASE 
+      WHEN inc_type ~* '^10' THEN 1
+      ELSE 0
+    END
+  ) AS other,
+  sum(
+    CASE 
+      WHEN inc_type ~* '^[^1]' or inc_type = '' or inc_type is null THEN 1
+      ELSE 0
+    END
+  ) AS not_fire  
+--  inc_type,
+--  fire_sprd,
+--  eq_power,
+--  eq_brand,
+--  eq_model
+FROM basicincident LEFT JOIN fireincident USING (state, fdid, inc_date, inc_no, exp_no)
+                   LEFT JOIN fdheader USING (state, fdid)
+WHERE
+--equip_inv = '229' and
+  ((state = 'CA' AND fdid in ('01065', '19105', '30020', '30065', '33090', '38005')) OR
+  (state = 'CO' AND fdid in ('00180', '00520', '05909')) OR
+  (state = 'FL' AND fdid in ('01023', '04112', '06301')) OR
+  (state = 'GA' AND fdid in ('03301')) OR
+  (state = 'HI' AND fdid in ('52000')) OR
+  (state = 'IL' AND fdid in ('CS931')) OR
+  (state = 'KY' AND fdid in ('34155')) OR
+  (state = 'NJ' AND fdid in ('09013')) OR
+  (state = 'NV' AND fdid in ('03050')) OR
+  (state = 'NY' AND fdid in ('24001')) OR
+  (state = 'VA' AND fdid in ('04100')) OR
+  (state = 'WA' AND fdid in ('17M15', '27D06')) OR
+  (state = 'WI' AND fdid in ('05040')))
+
+group by 
+  state,
+  fdid,
+  fd_name,
+  extract(year from inc_date),
+  CASE
+    WHEN equip_inv = '229' THEN 'Battery' 
+    ELSE 'Other' 
+  END
+
+order by 
+  state,
+  fdid,
+  extract(year from inc_date)
+
+```
+
+```{sql tesla-vin, connection=ipsdi.nfirs, output.var="tesla", eval=do.sql}
+SELECT 
+  extract(year from inc_date) as year,
+  sum(
+    CASE 
+      WHEN mob_vin_no ~* '^(5YJ|7SA|LRW|XP7|SFZ)' THEN 1
+      WHEN equip_inv = '229' THEN 1
+      ELSE 0
+    END
+  ) AS total, 
+  sum(
+    CASE 
+      WHEN mob_vin_no ~* '^(5YJ|7SA|LRW|XP7|SFZ)' THEN 1
+      ELSE 0
+    END
+  ) AS tesla 
+FROM basicincident LEFT JOIN fireincident USING (state, fdid, inc_date, inc_no, exp_no)
+                   LEFT JOIN fdheader USING (state, fdid)
+WHERE
+--  equip_inv = '229' and
+  inc_type ~* '^13'
+
+group by 
+  extract(year from inc_date)
+
+order by 
+  extract(year from inc_date)
+```
+
+```{sql tesla-vin1, connection=ipsdi.nfirs, output.var="tesla_detail", eval=do.sql}
+SELECT 
+  state,
+  inc_date,
+  extract(year from inc_date) as year,
+  mob_year,
+  CASE
+    WHEN equip_inv ~* '22[89]' THEN 'Yes'
+	ELSE 'No'
+  END as battery,
+  mob_invol,
+  CASE
+    WHEN mob_invol in ('2', '3') THEN 'Yes'
+	ELSE 'No'
+  END AS ignited,
+  CASE
+    WHEN mob_invol in ('1', '3') THEN 'Yes'
+	ELSE 'No'
+  END AS burned,
+  mob_type
+FROM basicincident LEFT JOIN fireincident USING (state, fdid, inc_date, inc_no, exp_no)
+                   LEFT JOIN fdheader USING (state, fdid)
+WHERE
+  mob_vin_no ~* '^(5YJ|7SA|LRW|XP7|SFZ)' and
+  inc_type ~* '^13'
+
+order by 
+  extract(year from inc_date)
+```
+
+```{sql tesla-vin-inc, connection=ipsdi.nfirs, output.var="car.actions", eval=do.sql}
+with mk as (
+	SELECT DISTINCT code_value, code_descr from codelookup where fieldid ~* 'mob_make'
+), b1 as (
+SELECT 
+  state,
+  fdid,
+  fd_name,
+  extract(year from inc_date) as year,
+  'Tesla' AS tesla,
+  mk.code_descr as make,
+  mob_model,
+  mob_year,
+  mob_vin_no,
+  equip_inv,
+  act_tak1,
+  act_tak2,
+  act_tak3
+FROM basicincident b LEFT JOIN fireincident f USING (state, fdid, inc_date, inc_no, exp_no)
+                     LEFT JOIN fdheader h USING (state, fdid)
+					 LEFT JOIN mk ON (f.mob_make = mk.code_value)
+WHERE
+  inc_type ~* '^13' and 
+  --  equip_inv = '229' and
+  mob_vin_no ~* '^(5YJ|7SA|LRW|XP7|SFZ)' and 
+  mob_type ~* '^1|NN'
+), b2 AS (
+SELECT 
+  state,
+  fdid,
+  fd_name,
+  extract(year from inc_date) as year,
+  'Other' AS tesla,
+  mk.code_descr as make,
+  mob_model,
+  mob_year,
+  mob_vin_no,
+  equip_inv,
+  act_tak1,
+  act_tak2,
+  act_tak3
+FROM basicincident b LEFT JOIN fireincident f USING (state, fdid, inc_date, inc_no, exp_no)
+                     LEFT JOIN fdheader h USING (state, fdid)
+					 LEFT JOIN mk ON (f.mob_make = mk.code_value)
+WHERE
+  inc_type ~* '^13' and 
+  equip_inv = '229' and
+--mob_vin_no ~* '^(5YJ|7SA|LRW|XP7|SFZ)' and 
+  mob_type ~* '^1|NN'
+limit 100
+)
+select * from b1
+UNION
+select * from b2
+order by 
+  tesla,
+  mob_vin_no
+```
+
+```{sql firelist, connection=ipsdi.nfirs, output.var="structures", eval=do.sql}
+WITH d AS (
+/*  Select the departments I am interested in.
+      Departments with at least 600 structure fires since 2010 and at least 
+      one battery fire in that time.
+*/
+SELECT
+  state,
+  fdid,
+  count(*) as n,
+  sum(
+    CASE
+      WHEN equip_inv = '229' THEN 1
+      ELSE 0
+    END
+) AS batteries
+FROM fireincident JOIN basicincident USING (state, fdid, inc_date, inc_no, exp_no)
+WHERE 
+  inc_type ~* '^11' AND
+  extract(year from inc_date) > 2010
+GROUP BY
+  state,
+  fdid
+HAVING 
+  count(*) > 600 AND
+  sum(
+    CASE
+      WHEN equip_inv = '229' THEN 1
+      ELSE 0
+    END
+  ) > 0
+)
+SELECT
+  state,
+  fdid,
+  fd_name,
+  extract(year from inc_date) as year,
+  count(*) as fires,
+  sum(
+    CASE
+      WHEN equip_inv = '229' THEN 1
+      ELSE 0
+    END
+  ) AS batteries
+FROM 
+  fireincident JOIN basicincident USING (state, fdid, inc_date, inc_no, exp_no)
+               JOIN d USING (state, fdid) 
+               LEFT JOIN fdheader USING (state, fdid)
+WHERE
+  inc_type ~* '^11'
+GROUP BY 
+  state,
+  fdid,
+  fd_name,
+  extract(year from inc_date)
+```
+
+```{sql firedetails, connection=ipsdi.nfirs, output.var="details", eval=do.sql}
+WITH a AS (
+  SELECT DISTINCT *
+  FROM codelookup
+  WHERE fieldid ~* 'area_orig'
+), p AS (
+  SELECT DISTINCT *
+  FROM codelookup
+  WHERE fieldid ~* 'prop_use'
+)
+SELECT
+  state,
+  fdid,
+  fd_name,
+  extract(year from inc_date) as year,
+  extract(month from inc_date) as month,
+  prop_use,
+  p.code_descr as property,
+  CASE
+    WHEN coalesce(ff_death,  0) > 0 THEN 'Yes'
+    WHEN coalesce(ff_inj,    0) > 0 THEN 'Yes'
+    WHEN coalesce(oth_death, 0) > 0 THEN 'Yes'
+    WHEN coalesce(oth_inj,   0) > 0 THEN 'Yes'
+	ELSE 'No'
+  END as casualties,
+  extract(hour from alarm) as tod,
+  area_orig,
+  a.code_descr as room,
+  fire_sprd,
+  city,
+  state_id,
+  zip5,
+  concat_ws(', ', sup_fac_1, sup_fac_2, sup_fac_3) as sup_fac,
+  st_AsEWKT(geom) as wkt
+FROM 
+  fireincident JOIN basicincident USING (state, fdid, inc_date, inc_no, exp_no)
+               LEFT JOIN incidentaddress USING (state, fdid, inc_date, inc_no, exp_no)
+               LEFT JOIN fdheader USING (state, fdid) 
+               LEFT JOIN a ON (area_orig = a.code_value)
+               LEFT JOIN p ON (prop_use  = p.code_value)
+WHERE
+  inc_type ~* '^11' AND
+  equip_inv = '229' AND
+  extract(year from inc_date) > 2010
+```
+
+```{r not_sql, eval=! do.sql}
+# Since all the sql queries were actually conducted off-line (and are disabled above)
+# this loads the downloaded csv files and is what actually loads the data
+data.summ <- paste0(csv_dir, "summary.csv") %>% read.csv()
+selected <- paste0(csv_dir, "selected.csv") %>% read.csv()
+tesla <- paste0(csv_dir, "tesla.summ.csv") %>% read.csv()
+tesla_detail <- paste0(csv_dir, "Tesla.csv") %>% read.csv()
+car.actions <- paste0(csv_dir, "action.taken.csv") %>% read.csv()
+structures <- paste0(csv_dir, "structures.csv") %>% read.csv()
+details <- paste0(csv_dir, "details.new.csv") %>% read.csv()
+```
+
+```{r more-details, eval=FALSE}
+# There is a little bit of massaging to do with `details`
+# Most of this is getting the geocoding right. 
+# But the geocoding isn't right: try the following code:
+# details %>% st_coordinates() %>% as.data.frame() %>% mutate(choose=Y < 0) %>% with(table(choose))
+# The fact that there are latitudes less than zero means that some 91 records got latitude and 
+# longitude mixed up. So, this deletes the geocoding information. 
+# To get it back, uncomment the following lines.
+
+#details <- details$wkt %>% strsplit(";") %>% do.call("rbind", .) %>% as.data.frame() %>% 
+#           setNames(c("srid", "geom")) %>% cbind(details, .)
+#details$geom[details$geom == "NULL"] <- "POINT EMPTY"
+#details <- st_as_sf(details, wkt="geom")
+#srid <- details$srid %>% stringr::str_extract("[0-9]+") %>% as.integer() %>% magrittr::extract(1)
+#st_crs(details) <- srid
+#rm(srid)
+#details$srid <- NULL
+details$wkt <- NULL
+# 
+details$sup_fac <- trimws(details$sup_fac, which="both", whitespace="[ ,]") %>%
+  sub("^$", NA, .)
+```
+
+```{r cpsc-data, eval=! exists("incidents")}
+ff <- c("SearchResults_IncidentReport_02102025_0816.csv",
+        "SearchResults_IncidentReport_02142025_1346.csv") %>% paste0(csv_dir, .)
+incidents <- rbind(read.csv(ff[1], skip=1),
+                   read.csv(ff[2], skip=1))
+
+reports <- grep("^[0-9]",  incidents$Report.No.)
+reportz <- grep("^[^0-9]", incidents$Report.No.)
+
+pr <- incidents[reportz, 1:5] %>% 
+      setNames(c("Title", "Date", "Text", "Number", "URL")) %>% unique()
+incidents <- incidents[reports,] %>% unique()
+
+rm(ff, reports, reportz)
+
+incident.txt <- with(incidents, 
+                     paste0(Incident.Description,
+                       ifelse(is.na(Company.Comments), "", 
+                              paste0("\nCompany Comments: ", Company.Comments))))
+```
+
+```{r cleanup-01}
+save(data.summ, selected, tesla, tesla_detail, car.actions, structures, details, 
+     file=paste0(intmdt_dir, "nfirs.data.RData"))
+save(incidents, incident.txt, file=paste0(intmdt_dir, "cpsc.data.RData"))
+save(incidents, details, file=paste0(intmdt_dir, "recapture.data.RData"))
+rm(list=setdiff(ls(), keep))
+```

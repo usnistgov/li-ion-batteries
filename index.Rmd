@@ -1,0 +1,37 @@
+---
+title: "Batteries"
+output: html_document
+date: "2024-12-13"
+rmd_files: ["Index.Rmd", "01.Data.Rmd", "02.NFIRS.Rmd", "03.CPSC.Rmd", "04.Recapture.Rmd", "05.FAA_Air.Rmd", "06.BESS.Rmd","07.Figures.Rmd"]
+---
+
+```{r setup-00, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+
+book_flag <- TRUE
+csv_dir <- "csv/"
+intmdt_dir <- "rdata/"
+# libraries used in this document:
+#
+## Basic Utility Libraries
+# bookdown
+# rmarkdown
+# knitr
+# magrittr
+# tidyr
+# dplyr
+# lubridate
+# ggplot2
+# parallel
+# doParallel
+# foreach
+#
+## Technical Libraries
+# maxLik
+# rstan
+# loo
+# textmineR
+# stopwords
+# SnowballC
+# sf?
+```

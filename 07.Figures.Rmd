@@ -1,0 +1,44 @@
+---
+title: "Batteries"
+subtitle: "Figures"
+output: html_document
+date: "2024-12-13"
+---
+
+# Figures
+
+```{r setup-07, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+
+library(ggplot2)
+
+keep <- ls()
+if(! exists("figs")){
+  stop("Cannot process figures unless they are present!")
+}
+if(! (is.list(figs) & all(sapply(figs, function(x) "ggplot" %in% class(x))))){
+  stop("The `figs` object must be a list of `ggplot` objects!")
+}
+```
+
+
+```{r figures}
+if(is.null(names(figs))){
+  nm <- paste0("figure.", 1:length(figs))
+} else {
+  nm <- names(figs)
+  if(any(grepl("^$", nm))){
+    ndx <- (1:length(nm))[grepl("^$", nm)]
+    nm[ndx] <- paste0("figure.", ndx)
+  }
+}
+
+for(i in 1:length(figs)){
+  paste0("figs/", nm[i], ".png") %>% ggsave(plot=figs[[i]])
+}
+rm(nm, i, ndx)
+```
+
+```{r cleanup-07}
+rm(list=intersect(ls(), c("book_flag", "csv_dir", "intmdt_dir")))
+```

@@ -1,0 +1,1153 @@
+---
+title: "Batteries"
+subtitle: "NFIRS Data"
+output: html_document
+date: "2024-12-13"
+---
+
+# NFIRS
+
+```{r setup-02, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(rstan)
+library(loo)
+
+keep <- c(ls(), "figs")
+
+if(! exists("csv_dir")){
+  csv_dir <- "csv/"
+}
+if(! exists("intmdt_dir")){
+  intmdt_dir <- "rdata/"
+}
+
+# Either load the completed data (in NFIRS.RData) 
+# or the relevant base data in NFIRS.Data.RData.
+ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
+if("nfirs.rdata" %in% tolower(ff)){
+  fg <- "nfirs.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+} else if("nfirs.data.rdata" %in% tolower(ff)){
+  fg <- "nfirs.data.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+} else {
+  stop("The data files needed for the NFIRS analysis are not present!")
+}
+load(paste0(intmdt_dir, fg))
+rm(ff, fg)
+
+# keep <- c(ls(), "figs")
+keep2 <- c("data.summ", "tesla", "tesla_detail", "car.actions", "selected", "structures", "details",
+           "stan.summ", "stan.summ.out", "struc.13", "cur.batt", "stan.model", "stan.out2", "stan.out3",
+           "switchdate", "stan.model1", "st_out1", "stan.model2", "st_out2", "tod.results",
+           "seasonality", "sev.results", "room.res", "loo_loo", "figs")
+
+```
+
+## Overall Statistics
+
+```{r data-summary}
+if(! exists("figs")) figs <- list()
+figs$figure.00 <- 
+    data.summ %>% filter(year > 2010, inc_type == '11') %>% 
+      mutate(ratio.battery=battery_casualties / battery_fires, 
+             ratio.structure=casualties/fires) %>% 
+      select(c("year", starts_with("ratio"))) %>% 
+      pivot_longer(2:3, names_prefix="ratio[.]", values_to="ratio") %>% 
+      ggplot() + aes(x=year, y=ratio, group=name, color=name) + 
+          geom_point() + geom_line() + expand_limits(y=0) + 
+          scale_x_continuous(breaks=2010 + 0:3 * 5, minor_breaks=2010:2025)
+print(figs$figure.00)
+```
+
+```{stan summ, output.var="stan.summ", eval=! exists("stan.summ")}
+data {
+  int           fires;
+  int           casualties;
+  int           batt_fire;
+  int           batt_cas;
+}
+
+transformed data {
+}
+
+parameters {
+  real<lower=0, upper=1>   p_batt;
+  real<lower=0, upper=1>   p_cas;
+  real<lower=0, upper=1>   p_batt_cas;
+}
+
+transformed parameters {
+}
+
+model {
+  casualties ~ binomial(fires, p_cas);
+  batt_fire  ~ binomial(fires, p_batt);
+  batt_cas ~ binomial(batt_fire, p_batt_cas);
+}
+
+generated quantities {
+  real            r_batt_cas = p_batt_cas / p_cas;
+}
+```
+
+
+```{r summ-table}
+tmp <- data.summ %>% filter(inc_type == 11) %>% group_by(cut(year, c(-Inf, 2004, 2010, 2017, Inf))) %>% 
+  summarize(fires=sum(fires), cas=sum(casualties), batt_fires=sum(battery_fires),
+            batt_cas=sum(battery_casualties)) %>% 
+  mutate(fires=rev(cumsum(rev(fires))), cas=rev(cumsum(rev(cas))), 
+         batt_fires=rev(cumsum(rev(batt_fires))), batt_cas=rev(cumsum(rev(batt_cas)))) %>% 
+  magrittr::extract(3, 2:5) %>% unlist() %>% matrix(ncol=2) %>% {rbind(., .[2,] / .[1,])} %>%
+  as.data.frame() %>% cbind(type=c("Fires", "Casualties", "Ratio"), .) %>% 
+  setNames(c("type", "Structure", "Battery")) %>% 
+  mutate(Ratio = Battery / Structure)
+
+stan.summ.out <- tmp %>% with(list(fires=Structure[1], casualties=Structure[2], 
+                                   batt_fire=Battery[1], batt_cas=Battery[2])) %>%
+  sampling(stan.summ, data=., refresh=F)
+
+tmp2 <- stan.summ.out %>% rstan::extract() %>% 
+        sapply(function(x) c(mean(x), sd(x), quantile(x, c(0.025, 0.975)))) %>% as.data.frame() %>%
+        cbind(value=c("mean", "sd", "lcl", "ucl"), .)
+row.names(tmp2) <- NULL
+```
+
+This table shows summary information on fires, battery fires, and injuries.
+
+```{r summary-a}
+tmp %>% knitr::kable()
+```
+
+And this table shows confidence intervals on all the ratios in the table above.
+Ratios and confidence intervals for this table are computed in Stan. 
+What is significant here is that injuries from battery fires occur at almost 
+double the rate of regular structure fires (`r tmp2$r_batt_cas[1] %>% formatC(digits=2, format="f")`, 
+Confidence interval: `r tmp2$r_batt_cas[3] %>% formatC(digits=2, format="f")` - 
+`r tmp2$r_batt_cas[4] %>% formatC(digits=2, format="f")`).
+
+```{r summary-b}
+tmp2[,1:5] %>% knitr::kable()
+rm(tmp, tmp2)
+```
+
+## Selected (large) departments
+
+Data are from NFIRS. Initially we look at summaries of data for selected 
+departments to see what the data looks like.
+
+```{r selected-fig}
+selected %>% mutate(fires=total - not_fire) %>% 
+             select(state, fdid, fd_name, year, type, fires) %>% 
+             pivot_wider(names_from=type, values_from=fires) %>% 
+             filter(year > 2018) %>% group_by(fd_name) %>% 
+             summarize(Total=sum(Other, na.rm=T), Battery=sum(Battery, na.rm=T)) %>% 
+             mutate(Total=Total + Battery, ratio=Total / Battery) %>% 
+             arrange(desc(ratio)) %>% 
+     knitr::kable(col.names=c("Department", "All Fires", "Battery Fires", "Ratio"))
+```
+
+Basically, what is tells me is that NFIRS is terrible when it comes to 
+Li ion battery fires. The very wide range of number of battery fires per 
+reported fire is not realistically representative of the real world, and can 
+only mean that departments vary wildly in the extent to which they identify
+battery fires. Worse, the largest departments are typically the worst at it.
+
+## Tesla, by VIN
+
+Specifically looking at car battery fires presents a couple of serious problems.
+First, they are very poorly recorded in NFIRS (as seems to be typical of Li ion
+battery fires generally). Second, Regular (Pb-acid) battery fires are numerous
+in the data. It turns out that the easiest way to identify Li ion battery fires
+in automobiles is by identifying the cars by VIN number. At this point, Tesla is
+the only maker (and vehicles) that I can specifically identify in the data, so 
+this pulls that data.
+
+```{r tesla-est}
+figs$figure.01 <- 
+      tesla %>% pivot_longer(2:3) %>% ggplot() + aes(x=year, y=value, color=name, group=name) + 
+                geom_point() + geom_line() + scale_x_continuous(minor_breaks=2000:2025) + theme_bw()
+# This figure is different from what I made before. 
+# This will need to be reworked anyway once I get VIN info to work with.
+print(figs$figure.01)
+```
+
+Only about half of all vehicle fires in NFIRS have VIN numbers associated, so 
+expect the number of Li ion battery fires to be at least double these numbers.
+
+# Cars - Action Taken
+
+This looks at action taken for Li ion vehicle fires to see if there is anything 
+useful there.
+
+```{r tesla-action, eval=FALSE}
+action.codes <- read.csv(paste0(csv_dir, "act_tak_codes.csv"))[,-1]
+car.actions[,11:13] %>% as.matrix() %>% as.vector() %>% {.[! is.na(.) & . != '' & . != 'NULL']} %>%
+           data.frame(code=.) %>% left_join(action.codes, by=join_by(code==code_value)) %>%
+           with(table(code_descr)) %>% sort(decreasing=T)
+```
+
+Action taken does not give anything useful. Basically, the only thing it says is
+"Put out fire" as the action taken. Not useful.
+
+## List structure battery fires 
+
+What this does for *each* department is fit a Poisson model to the battery fire 
+data. Specifically, it fits the following model:
+
+$$B_{dt} \sim Pois\left\{ \lambda_{dt} \right\} $$
+
+where
+
+$$\log\left(\lambda_{dt}\right) = \log\left(F_{dt}\right) + a_d + b_d t$$
+
+That is, the log of the expected proportion of battery fires for each department is 
+a linear trend over time.
+
+
+```{r struc_anal_old, eval=FALSE}
+# This needs reworking. I need to NOT filter by the department ratio, since that 
+# can cause the very trend I am trying to explain.
+#********************************************************
+#**  At this point, I think this section is obsolete.  **
+#********************************************************
+
+struc.13 <- structures %>% filter(year >= 2013)
+
+t2 <- struc.13 %>% filter(year >= 2018) %>% 
+  { aggregate(.[,5:6], list(state=.$state, fdid=.$fdid, fdname=.$fd_name), sum) } %>% 
+  mutate(ratio = fires / batteries)
+depts <- t2$fdid[t2$ratio < 300]
+rm(t2)
+
+outs <- list()
+out  <- list()
+
+for(i in depts){
+  outs[[i]] <- struc.13 %>% filter(fdid==i) %>% mutate(yr=year - 2013) %>% 
+    glm(batteries ~ yr + offset(log(fires)), data=., family=quasipoisson)
+  t2 <- summary(outs[[i]])$coefficients %>% as.data.frame() %>% 
+    { cbind(dept=i, var=row.names(.), data.frame(., row.names=NULL)) }
+  out <- rbind(out, t2)
+}
+
+t2 <- out[,1:3] %>% tidyr::pivot_wider(names_from=2, values_from=3)
+t2$deptName <- match(t2$dept, struc.13$fdid)
+t2$deptName <- struc.13$fd_name[t2$deptName]
+t2 <- t2[,c(4,1,2,3)]
+t2$ratio <- exp(-t2$`(Intercept)`)
+
+verge <- t2 %>% filter(ratio < 1e5) %>% lm(yr ~ `(Intercept)`, data=.)
+ve <- verge %>% vcov() %>% eigen()
+tmp <- rnorm(20000) %>% { matrix(., ncol=2) %*% diag(sqrt(ve$values)) %*% t(ve$vectors) }
+tmp <- tmp + matrix(rep(coef(verge), 10000), ncol=2, byrow=TRUE)
+ver <- c(mean(exp(tmp[,1] / tmp[,2])), sd(exp(tmp[,1] / tmp[,2])))
+
+qq <- c(0.01, 0.025, 0.05, 0.1, 0.5, 0.9, 0.95, 0.975, 0.99)
+cur.batt <- data.frame(quantile=qq, 
+                  est1=c(mean(-tmp[,1] / tmp[,2]) + qnorm(qq) * sd(-tmp[,1] / tmp[,2])))
+cur.batt$rate1 <- exp(-cur.batt$est1)
+
+rm(verge, ve, tmp)
+```
+
+```{r struc_anal}
+struc.13 <- structures %>% filter(year >= 2013)
+depts    <- with(struc.13, paste0(state, ".", fdid)) %>% unique()
+
+outs <- list()
+out  <- list()
+
+for(i in depts){
+  outs[[i]] <- struc.13 %>% mutate(dept=paste0(state, ".", fdid), yr=year - 2013) %>% filter(dept == i) %>% 
+               glm(batteries ~ yr + offset(log(fires)), data=., family=quasipoisson)
+  t2 <- summary(outs[[i]])$coefficients %>% as.data.frame() %>% 
+    { cbind(dept=i, var=row.names(.), data.frame(., row.names=NULL)) }
+  out <- rbind(out, t2)
+}
+
+dept_summary <- out[,1:3] %>% tidyr::pivot_wider(names_from=2, values_from=3)
+dept_summary$deptName <- match(dept_summary$dept, with(struc.13, paste0(state, ".", fdid)))
+dept_summary$deptName <- struc.13$fd_name[dept_summary$deptName]
+dept_summary <- dept_summary[,c(4,1,2,3)]
+dept_summary$ratio <- exp(-dept_summary$`(Intercept)`)
+# Use either the above line OR the following two.
+#dept_summary$ratio.2013 <- exp(-dept_summary$`(Intercept)`)
+#dept_summary$ratio.2023 <- exp(-dept_summary$`(Intercept)` - 10 * dept_summary$yr)
+dept_summary <- struc.13 %>% mutate(dept=paste0(state, ".", fdid)) %>% 
+  group_by(dept) %>% summarize(fires=sum(fires), batt=sum(batteries)) %>% merge(dept_summary, .)
+
+verge <- dept_summary %>% filter(batt > 3, `(Intercept)` > -12, `(Intercept)` < -4) %>%
+         lm(yr ~ `(Intercept)`, data=.)
+ve <- verge %>% vcov() %>% eigen()
+tmp <- rnorm(20000) %>% { matrix(., ncol=2) %*% diag(sqrt(ve$values)) %*% t(ve$vectors) }
+tmp <- tmp + matrix(rep(coef(verge), 10000), ncol=2, byrow=TRUE)
+ver <- c(mean(exp(tmp[,1] / tmp[,2])), sd(exp(tmp[,1] / tmp[,2])))
+
+qq <- c(0.01, 0.025, 0.05, 0.1, 0.5, 0.9, 0.95, 0.975, 0.99)
+cur.batt <- data.frame(quantile=qq, 
+                  est1=c(mean(-tmp[,1] / tmp[,2]) + qnorm(qq) * sd(-tmp[,1] / tmp[,2])))
+cur.batt$rate1 <- exp(-cur.batt$est1)
+
+rm(verge, ve, tmp)
+```
+
+```{r figs}
+figs$figure.02 <- dept_summary %>% filter(batt > 3, `(Intercept)` > -12, `(Intercept)` < -4) %>% 
+   ggplot() + aes(x=`(Intercept)`, y=yr) + geom_point() + geom_smooth(method="lm") + 
+   scale_x_continuous()
+print(figs$figure.02)
+```
+
+Interestingly, the plot of all the slope-intercept values form a linear relationship.
+Two models that I can think of can produce this relationship. First, where at some 
+time (T), all converge on the same rate. That is, there is a rate *r* and a time *T* 
+such that for all departments $d \in \mathcal{D}$, $r = a_d + b_d T$. They converge
+at the point where one out of `r as.integer(ver[1])` &pm; `r as.integer(ver[2] * qnorm(0.975))`
+fires is a battery fire.
+
+An alternative model that produces this result is the switching model that is developed
+in the next two sections. In it there are two (log) linear trends, and each department
+switches between the two trends at a random point in the time line. The section below
+runs a simulation using this model to verify that it produces a linear trend like 
+the one above. The subsequent section attempts to fit such a model 
+to the data.
+
+## Testing a model
+
+The idea is that for all departments, the number of reported battery fires follows 
+the following model:
+
+$$B_{it} \sim Pois\left(\lambda_{it}\right)$$
+
+where
+
+$$ \ln \lambda_{it} = \left\{ \begin{matrix} a_0 + b_0 t & t < T_i \\ a_1 + b_1 t & t \ge T_i \end{matrix} \right.$$
+
+What I want to do is determine whether this model produces the linear results that 
+I see in my data. So I am going to take a take a specific set of $\left\{a_0, a_1, b_0, b_1\right\}$
+values and run a bunch of cases, each with different cutoff values ($T_i$), and see 
+if it replicates the results I see in the data.
+
+```{r model_data}
+model <- list(a0=5 * runif(1) - 15,
+              a1=2 * runif(1) - 6,
+              b0=0.02 * runif(1) - 0.01,
+              b1=0.1 * runif(1),
+              F=10000,
+              T_max=10,
+              n=100)
+
+df <- with(model, data.frame(rep=rep(1:(n * (T_max + 1)), each=T_max),
+                             T=rep(0:T_max, each=n * T_max),
+                             t=rep(1:T_max, n * (T_max + 1))))
+
+df$llambda <- with(model, ifelse(df$t <= df$T, a0 + df$t * b0, a1 + df$t * b1))
+df$fires <- model$F
+df$batteries <- rpois(nrow(df), df$fires * exp(df$llambda))
+
+m.results <- data.frame()
+for(i in 1:max(df$rep)){
+  out.22 <- df %>% filter(rep==i) %>% glm(batteries ~ t + offset(log(fires)), data=., family=quasipoisson) %>% coef()
+  m.results <- rbind(m.results, 
+                     data.frame(rep=i, intercept=out.22[1], yr=out.22[2]))
+}
+
+figs$figure.03 <- m.results %>% filter(intercept > -50, yr > -5) %>% ggplot() + aes(x=intercept, y=yr, color=factor(as.integer(rep/100))) + geom_point()
+
+print(figs$figure.03)
+```
+
+The results of the simulation model give results that are largely consistent with what 
+we are looking for. With the exception of the smallest battery fire rate, all the
+values fall into an approximate straight line, which is consistent with the 
+data.
+
+## Estimate Model
+
+The model that we work with is this:
+
+The idea is that reported fires follow a random switching model. Fires follow a 
+Poisson distribution where expected number of fires follows one of two log-linear 
+time trends. For each department, there is a random time $\tau_i$, where for any 
+time before $\tau_i$ expected number of fires follows one trend, and for any time
+after $\tau_i$ the expected number follows the other trend.
+
+Formally:
+
+let $\mathcal{D}$ be the set of departments,
+
+$\mathcal{T}$ be the times for which data is collected,
+
+$F_{dt}$ be the number of fires reported for department $d$ at time $t$,
+
+$B_{dt}$ be the number of battery fires reported for department $d$ at time $t$,
+
+and $a_1$, $a_2$, $b_1$, and $b_2$ are parameters.
+
+Finally, for each department $d \in \mathcal{D}$, there is a random switching time 
+$\tau_d \in \mathcal{T}$ such that:
+
+$$B_{dt} \sim Pois\left\{ \left\{\begin{matrix} \exp\left(\ln F_{dt} + a_1 + b_1 t\right) & t < \tau_d \\ \exp\left(\ln F_{dt} + a_2 + b_2 t\right) & t \ge \tau_d \end{matrix} \right. \right\}$$
+
+In the code below, the switching time $\tau_d$ is treated as a random variable with
+uniform prior.
+
+The version of this model discussed below has each department with its own slope 
+and intercept value before switching occurs, but there is a common value for 
+after switching occurs. A second version was estimated where both before and 
+after trends were common to all departments. Results were not substantially different.
+
+So build a STAN model that will estimate the model.
+
+```{stan model_fit, output.var="stan.model", eval=! exists("stan.model")}
+data {
+  int                       D;      // Number of departments
+  int                       T;      // Number of sample times (years)
+  array[D, T] int<lower=0>  batt;   // number of reported battery fires
+  array[D, T] int<lower=0>  fires;  // total number of reported fires
+  int<lower=0, upper=1>     end;    // 0 - Don't include; 1 - include
+  int<lower=0, upper=1>     dept_a; // 0 - Don't include; 1 - include
+  int<lower=0, upper=1>     dept_b; // 0 - Don't include; 1 - include
+}
+
+transformed data {
+  real log_unif = -log(T);
+  array[D, T] real  lfires = log(fires);  // log total number of reported fires
+  int               a_dim = max(1, dept_a * D);
+  int               b_dim = max(1, dept_b * D);
+}
+
+parameters {
+  vector[a_dim]     a0_par;     // Initial intercept (possibly, by department)
+  real              a1;         // Final common intercept
+  vector[b_dim]     b0_par;     // Initial slope (possibly, by department)
+  real              b1;         // Final common slope
+}
+
+transformed parameters {
+  matrix[D, T + end] lp;
+  {
+    vector[D]        a0;
+    vector[D]        b0;
+
+    if(a_dim == 1){
+      a0 = rep_vector(a0_par[1], D);
+    } else {
+      a0 = a0_par;
+    }
+    
+    if(b_dim == 1){
+      b0 = rep_vector(b0_par[1], D);
+    } else {
+      b0 = b0_par;
+    }
+
+    matrix[D, T + 1] lp_e;
+    matrix[D, T + 1] lp_l;
+    
+    lp_e[:, 1] = rep_vector(0, D);
+    lp_l[:, 1] = rep_vector(0, D);
+    
+    for(d in 1:D){
+      for (t in 1:T) {
+        lp_e[d, t + 1] = lp_e[d, t] + poisson_log_lpmf(batt[d, t] | lfires[d, t] + a0[d] + b0[d] * t);
+        lp_l[d, t + 1] = lp_l[d, t] + poisson_log_lpmf(batt[d, t] | lfires[d, t] + a1 + b1 * t);
+      }
+      lp[d] = rep_row_vector(log_unif + lp_l[d, T + 1], T + end) + lp_e[d, 1:(T + end)] - lp_l[d, 1:(T + end)];
+    }
+  }
+}
+
+model {
+  a0_par ~ normal(0,25);
+  b0_par ~ normal(0, 1);
+  for(dd in 1:D){
+    target += log_sum_exp(lp[dd]);
+  }
+}
+
+generated quantities {
+}
+```
+
+```{r stan_dat, eval=! exists("stan.data")}
+tmp.f <- struc.13 %>% mutate(dept=paste0(state, ".", fdid)) %>% 
+  filter(dept %in% depts) %>% 
+  pivot_wider(id_cols=year, names_from=dept, values_from=fires)
+tmp.b <- struc.13 %>% mutate(dept=paste0(state, ".", fdid)) %>% 
+  filter(dept %in% depts) %>% 
+  pivot_wider(id_cols=year, names_from=dept, values_from=batteries)
+dd <- tmp.f %>% colSums() %>% is.na() %>% not()
+dd[1] <- FALSE
+
+stan.data <- list(D = length(dd[dd]),
+                  T = nrow(tmp.f),
+                  batt = t(tmp.b[,dd]),
+                  fires=t(tmp.f[,dd]),
+                  end=0,
+                  dept_a=1,
+                  dept_b=0)
+
+rm(tmp.f, tmp.b)
+```
+
+
+```{r stan_run, eval=! (exists("stan.out2") & exists("stan.out3"))}
+fn <- function(depts.a=1, depts.b=depts.a){
+  function(){
+    list(a0=rnorm(depts.a, mean=-6, sd=1),
+         a1=rnorm(1, mean=-6, sd=1),
+         b0=rnorm(depts.b, mean= 0, sd=0.05),
+         b1=rnorm(1, mean= 0, sd=0.05))
+  }
+}
+# This provides an initialization function to the model because otherwise
+# I end up with garbage results. Doing this is more or less OK because I have 
+# a pretty good idea of what values I should end up with.
+stan.data$dept_a <- 0   # Common before values
+stan.data$dept_b <- 0
+stan.out2 <- sampling(stan.model, data=stan.data, init=fn())
+stan.data$dept_a <- 1   # Department specific before values
+stan.data$dept_b <- 1
+stan.out3 <- sampling(stan.model, data=stan.data, init=fn(stan.data$D))
+```
+
+
+
+```{r posterior}
+# This is intended to estimate the posterior probability of a switching time
+# for each department.
+
+dpt.temp <- struc.13 %>% mutate(dept=paste0(state, ".", fdid)) %>% 
+            filter(dept %in% depts) %>% 
+            pivot_wider(id_cols=year, names_from=dept, values_from=fires) %>% 
+            colSums() %>% is.na() %>% not()
+dpt.temp[1] <- FALSE
+
+dd <- matrix(ncol=11, nrow=0)
+lp <- rstan::extract(stan.out3, "lp")
+nd <- dim(lp[[1]])[2]
+for(i in 1:nd){
+  a <- lp[[1]][,i,]
+  b <- a %>% apply(2, max)
+  a1 <- a - matrix(b, nrow=nrow(a), ncol=ncol(a), byrow=TRUE)
+  a2 <- a1 %>% exp() %>% colSums()
+  a3 <- log(a2) + b
+  a4 <- exp(a3 - max(a3))
+  dd <- rbind(dd, a4 / sum(a4))
+}
+
+switchdate <- data.frame(dept=1:nd,
+                         year=apply(dd, 1, function(x) which(x == max(x))) + 2012)
+switchdate$dept <- names(dpt.temp)[dpt.temp]
+
+rm(a, a1, a2, a3, a4, b, i, lp, nd, dd, dpt.temp)
+vroom <- rbind(stan.out3 %>% rstan::extract("a1") %>% extract2(1) %>% {c(mean(.), sd(.))},
+               stan.out3 %>% rstan::extract("b1") %>% extract2(1) %>% {c(mean(.), sd(.))}) %>%
+         as.data.frame() %>% cbind(var=c("intercept", "slope"), .) %>% 
+         setNames(c("var", "est", "sd"))
+vroom$lcl <- vroom$est + qnorm(0.025) * vroom$sd
+vroom$ucl <- vroom$est + qnorm(0.975) * vroom$sd
+
+tuv <- stan.out2 %>% rstan::extract(c("a1", "b1")) %>% sapply(function(x) c(mean(x), sd(x)))
+cur.batt$est2 <- tuv[1,1] + 10 * tuv[1,2] + 
+                               qnorm(qq) * sqrt(tuv[2,1]^2 + 100 * tuv[2,2]^2)
+cur.batt$rate2 <- exp(-cur.batt$est2)
+
+tuv <- stan.out3 %>% rstan::extract(c("a1", "b1")) %>% sapply(function(x) c(mean(x), sd(x)))
+cur.batt$est3=tuv[1,1] + 10 * tuv[1,2] + 
+                               qnorm(qq) * sqrt(tuv[2,1]^2 + 100 * tuv[2,2]^2)
+cur.batt$rate3 <- exp(-cur.batt$est3)
+
+sw <- c(length(switchdate$dept[switchdate$year == 2013]),
+        length(switchdate$dept[switchdate$year == 2023]))
+```
+
+Initial battery fire rates are mostly indistinguishable from zero for 
+all departments. Final value for the 2012 ratio of battery fires to all fires
+was one battery fire to `r round(exp(-vroom[1,2]), -1)` fires (95% confidence 
+interval: `r round(exp(-vroom[1,5]), -1)`, `r round(exp(-vroom[1,4]), -1)`).
+Common final slope was `r round(100 * (exp(vroom[2,2]) - 1), 3)`% per year 
+(95% confidence interval: `r round(100 * (exp(vroom[2,4]) - 1), 3)`%, 
+`r round(100 * (exp(vroom[2,5]) - 1), 3)`%).
+
+The figure below shows the switchover year for each department in the model.
+Some `r sw[1]` departments switched over before the model period began, and `r sw[2]`
+switched over in the very last year. The remainder switched over at various times 
+throughout the model period.
+
+```{r changeover}
+rm(vroom)
+figs$figure.04 <- switchdate %>% mutate(year=factor(year)) %>% ggplot() + aes(x=year) +
+                 geom_histogram(stat="count") + xlab("Year") + ylab("Count") +
+                 theme_bw()
+print(figs$figure.04)
+```
+
+
+## Just model the data
+
+Another approach to guessing at the rate of battery fires is to assume that the 
+departments in the model report at various random rates (which is fitted by 
+a multivariate normal distribution). The actual underlying rate of battery fires
+is a quantile of that distribution. One factor is that fires occur randomly. So
+if there is randomly an unusually large number of fires early in the sample period
+then, by regression to the mean, we would expect a more negative slope, which 
+implies that intercept and slope will be negatively correlated. That is to say, 
+at least some of the slope in the figure above (figure 1???) is purely due to 
+random variation.  This model accounts for that.
+
+```{stan model_var1, output.var="stan.model1", eval=! exists("stan.model1")}
+// This estimates the Covariance matrix of the intercept-slope pairs jointly with
+// the reported data. Since estimating just the MV Normal for the intercept-slope 
+// pair had issues that might fix.
+//
+// That is, the raw data is estimated using a random-effects model where a 
+// slope and intercept value is estimated for each department. Then a MV Normal 
+// distribution is fitted to the estimated slope-intercept values.
+data {
+  int                           N_year;     // Number of years
+  int                           N_dept;     // Number of Departments
+  array[N_dept, N_year] int     batteries;  // number of reported battery fires
+  array[N_dept] vector[N_year]  fires;      // number of reported fires
+  vector[N_year]                year;       // year
+}
+
+transformed data {
+}
+
+parameters {
+  array[N_dept]  real  intercept;
+  array[N_dept]  real  slope;
+  vector[2]            mu;
+  cov_matrix[2]        Sigma;
+}
+
+transformed parameters {
+}
+
+model {
+  vector[N_year]   llambda;
+  array[N_dept] vector[2]  dept_pars;
+  
+  for(dept_id in 1:N_dept){
+    dept_pars[dept_id, 1] = intercept[dept_id];
+    dept_pars[dept_id, 2] = slope[dept_id];
+    llambda = log(fires[dept_id]) + rep_vector(intercept[dept_id], N_year) + slope[dept_id] * year;
+    batteries[dept_id] ~ poisson_log(llambda);
+  }
+  dept_pars ~ multi_normal(mu, Sigma);
+}
+
+generated quantities {
+  vector[2]     svar = eigenvalues_sym(Sigma);
+  matrix[2,2]   qq   = eigenvectors_sym(Sigma);
+  real          theta1 = acos(qq[1,1]) * 180 / pi();
+  real          theta2 = asin(qq[2,1]) * 180 / pi();
+  vector[2]     est_90 = qq * diag_matrix(sqrt(svar)) * [0, inv_Phi(0.10 )]' + mu;
+  vector[2]     est_95 = qq * diag_matrix(sqrt(svar)) * [0, inv_Phi(0.05 )]' + mu;
+  vector[2]     est_97 = qq * diag_matrix(sqrt(svar)) * [0, inv_Phi(0.025)]' + mu;
+  vector[2]     est_99 = qq * diag_matrix(sqrt(svar)) * [0, inv_Phi(0.01 )]' + mu;
+
+  vector[N_dept * N_year] log_lik;
+  int                     n;
+  for (d in 1:N_dept) {
+    for (y in 1:N_year){
+      n = y + (d - 1) * N_year;
+      log_lik[n] = poisson_log_lpmf(batteries[d,y] | log(fires[d,y]) + intercept[d] + slope[d] * year[y]);
+    }
+  }
+}
+```
+
+```{r data1}
+a <- NULL
+for(i in depts) a <- c(a, struc.13 %>% filter(paste0(state, ".", fdid) == i) %>% nrow())
+d2 <- depts[a == 11]
+
+struc.13a <- struc.13 %>% mutate(dept = paste0(state, ".", fdid)) %>% 
+             filter(dept %in% d2)
+st_dat1 <- list(N_year = 11,
+                N_dept = length(d2),
+                batteries = matrix(struc.13a$batteries, ncol=11, byrow=TRUE),
+                fires = matrix(struc.13a$fires, ncol=11, byrow=TRUE),
+                year = 0:10)
+rm(i, d2, a, struc.13a)
+```
+
+```{r model1, eval=! exists("st_out1")}
+st_out1 <- sampling(stan.model1, data=st_dat1, iter=4000, warmup=1000)
+```
+
+
+```{r plot-next}
+V <- st_out1 %>% rstan::extract("svar") %>% extract2(1) %>% colMeans()  # eigenvalues and
+Q <- st_out1 %>% rstan::extract("qq"  ) %>% extract2(1) %>% colMeans()  # eigenvector matrix for the covariance matrix.
+mu<- st_out1 %>% rstan::extract("mu"  ) %>% extract2(1) %>% colMeans() # Mean values for the Estimated MV Normal distribution
+
+t2a <- st_out1 %>% rstan::extract(c("intercept", "slope")) %>% sapply(colMeans) %>% as.data.frame() %>% 
+       { cbind(dept=1:nrow(.), .) }
+
+# This builds the plot of the data with the error ellipses built from the covariance
+# matrix around the data.
+ddf <- matrix(c(rep(0, 27), -13:13 / 10), ncol=2) %*% diag(sqrt(V)) %*% t(Q) %>%
+       as.data.frame() %>% setNames(c("x", "y"))
+ddf$x <- ddf$x + mu[1]
+ddf$y <- ddf$y + mu[2]
+ddf <- cbind(gp="X", ddf)
+
+dd1 <- matrix(c(-20:20 / 10, rep(0, 41)), ncol=2) %*% diag(sqrt(V)) %*% t(Q) %>%
+       as.data.frame() %>% setNames(c("x", "y"))
+dd1$x <- dd1$x + mu[1]
+dd1$y <- dd1$y + mu[2]
+ddf <- rbind(ddf, cbind(gp="Y", dd1))
+
+dd1 <- matrix(qnorm(0.9) * c(cos(pi * -20:20 / 20), sin(pi * -20:20 / 20)), ncol=2) %*%
+        diag(sqrt(V)) %*% t(Q) %>% as.data.frame() %>% setNames(c("x", "y"))
+dd1$x <- dd1$x + mu[1]
+dd1$y <- dd1$y + mu[2]
+ddf <- rbind(ddf, cbind(gp="Q90", dd1))
+
+dd1 <- matrix(qnorm(0.95) * c(cos(pi * -20:20 / 20), sin(pi * -20:20 / 20)), ncol=2) %*%
+        diag(sqrt(V)) %*% t(Q) %>% as.data.frame() %>% setNames(c("x", "y"))
+dd1$x <- dd1$x + mu[1]
+dd1$y <- dd1$y + mu[2]
+ddf <- rbind(ddf, cbind(gp="Q95", dd1))
+
+figs$figure.05 <- t2a %>% ggplot() + aes(x=intercept, y=slope) + geom_point() + 
+                 geom_path(aes(x=x, y=y, group=gp, color=gp), data=ddf)
+
+
+tuv <- st_out1 %>% rstan::extract(c("mu", "Sigma")) %>% sapply(colMeans)
+cur.batt$est4 <- as.vector(c(1, 10) %*% tuv$mu) + 
+                          qnorm(qq) * as.vector(c(1, 10) %*% tuv$Sigma %*% c(1, 10))
+cur.batt$rate4 <- exp(-cur.batt$est4)
+```
+
+```{r figure4}
+plot(figs$figure.05)
+```
+
+As an alternative, I fit a model with a fixed common growth rate and a random-effects
+term for the base rate for each department and compare the two.
+
+```{stan model_var2, output.var="stan.model2", eval=! exists("stan.model2")}
+// This estimates the raw data using a random-effects model where an intercept 
+// value is estimated for each department. In addition a common slope is estimated
+// for the data. Then a Normal distribution is fitted to the estimated intercept 
+// values.
+data {
+  int                           N_year;     // Number of years
+  int                           N_dept;     // Number of Departments
+  array[N_dept, N_year] int     batteries;  // number of reported battery fires
+  array[N_dept] vector[N_year]  fires;      // number of reported fires
+  vector[N_year]                year;       // year
+}
+
+transformed data {
+}
+
+parameters {
+  array[N_dept]  real  intercept;
+  real                 slope;
+  real                 mu;
+  real<lower=0>        Sigma;
+}
+
+transformed parameters {
+}
+
+model {
+  vector[N_year]   llambda;
+
+  for(dept_id in 1:N_dept){
+    llambda = log(fires[dept_id]) + rep_vector(intercept[dept_id], N_year) + slope * year;
+    batteries[dept_id] ~ poisson_log(llambda);
+  }
+  intercept ~ normal(mu, Sigma);
+}
+
+generated quantities {
+  vector[N_dept * N_year] log_lik;
+  int                     n;
+  for (d in 1:N_dept) {
+    for (y in 1:N_year){
+      n = y + (d - 1) * N_year;
+      log_lik[n] = poisson_log_lpmf(batteries[d,y] | log(fires[d,y]) + intercept[d] + slope * year[y]);
+    }
+  }
+}
+```
+
+
+
+
+```{r model2}, eval=! exists("st_out2")}
+st_out2 <- sampling(stan.model2, data=st_dat1, iter=4000, warmup=1000)
+```
+
+
+The following table compares the fit of the two models. The comparison says that
+the first model is a better fit to the data. That is, taking into account the 
+possibility that each department is growing at a different rate is a better fit
+to the data (even after accounting for the extra 200+ parameters in the model)
+than the simplified version of the model. 
+
+```{r compare_models, eval=! exists("loo_loo")}
+st_out_ll1 <- extract_log_lik(st_out1, merge_chains = FALSE)
+st_out_r_eff1 <- relative_eff(exp(st_out_ll1), cores = 20)
+loo1 <- loo(st_out_ll1, r_eff = st_out_r_eff1, cores = 20)
+
+st_out_ll2 <- extract_log_lik(st_out2, merge_chains = FALSE)
+st_out_r_eff2 <- relative_eff(exp(st_out_ll2), cores = 20)
+loo2 <- loo(st_out_ll2, r_eff = st_out_r_eff2, cores = 20)
+
+loo_loo <- loo_compare(loo1, loo2)
+```
+
+```{r looloo}
+print(loo_loo)
+```
+
+Below are shown the various estimates of the rate at which battery fires occur.
+The best estimates range from one battery fire per 60 fires to one battery fire 
+per 165 fires. The 95% confidence intervals tend to overlap, with the 
+slope-convergence estimate the only one that is substantially different.
+
+While none of these are particularly good estimates and all have very serious 
+flaws, the similarity between them gives some hope that in aggregate they provide
+some sense of the rate at which battery fires occur.
+
+```{r best_guess}
+tuv <- st_out2 %>% rstan::extract(c("mu", "Sigma", "slope")) %>% 
+                   sapply(function(x) c(mean(x), sd(x)))
+cur.batt$est5 <- tuv[1,1] + 10 * tuv[1,3] + 
+                        sqrt(tuv[1,2]^2 + 100 * tuv[2,3]^2) * qnorm(qq)
+cur.batt$rate5 <- exp(-cur.batt$est5)
+
+names(cur.batt) <- c("quantile", "est1", "Slope Convergence", "est2", "Switching 1",
+                     "est3", "Switching 2", "est4", "MVNorm 1", "est5", "MVNorm2")
+
+figs$figure.06 <- cur.batt %>% t() %>% as.data.frame() %>% setNames(paste0("q.", qq)) %>%
+                 as_tibble(rownames="est") %>% filter(! grepl("^[qe]", est)) %>%
+                 mutate(est=factor(est, levels=unique(est))) %>% 
+                 ggplot() + aes(x=est, y=q.0.5, ymin=q.0.025, ymax=q.0.975) +
+                            geom_point() + geom_errorbar(width=0.05) +
+                            expand_limits(y=0) + 
+                            xlab("Estimate") + ylab("Per Number of Fires") 
+
+figs$figure.06
+```
+
+Also below is a table of the same data.
+
+```{r print_table}
+cur.batt %>% t() %>% as.data.frame() %>% setNames(paste0("q.", qq)) %>%
+     as_tibble(rownames="est") %>% filter(grepl("^[^qe]", est)) %>% 
+     magrittr::extract(,c(1,6,9,3)) %>% 
+     knitr::kable(col.names=c("Model", "Median", "95% Confidence", "Interval"), digits=0)
+```
+
+## Time of Day
+
+```{r tod}
+tod.results <- list(
+  all= details %>% 
+               with(aggregate(data.frame(fires=fdid), 
+                              list(year=year - 2015, tod=factor(tod)), length)) %>%
+               glm(fires ~ tod + year, data=., family=quasipoisson),
+  home=details %>% filter(prop_use %in% c('419', '429')) %>%
+               with(aggregate(data.frame(fires=fdid), 
+                              list(year=year - 2015, tod=factor(tod)), length)) %>%
+               glm(fires ~ tod + year, data=., family=quasipoisson),
+  other=details %>% filter(! prop_use %in% c('419', '429')) %>%
+               with(aggregate(data.frame(fires=fdid), 
+                              list(year=year - 2015, tod=factor(tod)), length)) %>%
+               glm(fires ~ tod + year, data=., family=quasipoisson))
+
+tmp.df <- NULL
+
+for(i in names(tod.results)){
+  uuu <- tod.results[[i]]
+  ndx <- uuu %>% coef() %>% { grep("tod", names(.)) }
+  tmp.df <- rbind(tmp.df, 
+                  data.frame(group=i,
+                       tod=0:24, 
+                       val=c(0, uuu %>% coef() %>% { .[ndx] }, 0),
+                       se =c(0, uuu %>% vcov() %>% diag() %>% {.[ndx]} %>% sqrt(), 0)))
+}
+
+tmp.df$lcl <- with(tmp.df, val + qnorm(0.025) * se)
+tmp.df$ucl <- with(tmp.df, val + qnorm(0.975) * se)
+
+rm(uuu, i, ndx)
+
+figs$figure.07 <- tmp.df %>% ggplot() + aes(x=tod, y=val, ymin=lcl, ymax=ucl) +
+           geom_point() + geom_line() + geom_ribbon(alpha=0.3) + facet_wrap(~ group) +
+           scale_x_continuous(breaks=0:4 * 6, minor_breaks=0:24) + theme_bw()
+
+figs$figure.07
+```
+
+Home fires are about 2/3 of the total battery fires in NFIRS. The figure above
+shows the effect of time of day on battery fires for all battery fires, home 
+battery fires, and battery fires not in homes. All follow a fairly typical 
+day-night cycle where battery fires are more common during the day than at night.
+
+Home fires vary from that slightly in that they are more common when people are
+active at home. So there is a slight peak in the number of fires between 7 and 9
+am, and a much larger peak in the late afternoon or early evening. Non-home 
+battery fires have a relatively stable fire rate between the hours of 8am and 
+8pm and tend to have a fire rate that is much lower outside of those hours.
+
+## Seasonality
+
+```{r season}
+seasonality <- list(month=details %>% filter(prop_use %in% c('419', '429')) %>% 
+                      mutate(yr = year - 2015, month=factor(month)) %>% 
+                      group_by(yr, month) %>% summarize(fires=n()) %>%
+                      glm(fires ~ 0 + yr + month, data=., family=quasipoisson),
+                    seas=details %>% filter(prop_use %in% c('419', '429')) %>% 
+                      mutate(yr = year - 2015, season=factor(month %/% 3 %>% mod(4))) %>% 
+                      group_by(yr, season) %>% summarize(fires=n()) %>%
+                      glm(fires ~ 0 + yr + season, data=., family=quasipoisson))
+
+season.df <- summary(seasonality$month)$coefficients %>% as_tibble(rownames="var") %>% as.data.frame() %>%
+             magrittr::extract(-1,)
+season.df$var <- 1:12
+# season.df[1, 2:5] <- c(0, 0, NA, NA)
+season.df$var <- factor(season.df$var, labels=month.name)
+season.df$lcl <- with(season.df, Estimate + `Std. Error` * qnorm(0.025))
+season.df$ucl <- with(season.df, Estimate + `Std. Error` * qnorm(0.975))
+
+tmp <- summary(seasonality$seas)$coefficients %>% as_tibble(rownames="var") %>% as.data.frame() %>%
+             magrittr::extract(-1,)
+# tmp[1, 2:5] <- c(0, 0, NA, NA)
+tmp$var <- 0:3
+tmp$lcl <- with(tmp, Estimate + `Std. Error` * qnorm(0.025))
+tmp$ucl <- with(tmp, Estimate + `Std. Error` * qnorm(0.975))
+names(tmp) <- c("var.a", "Season", "Season.sd", "Season.t", "Season.p", "Season.lcl", "Season.ucl")
+uu <- as.integer(season.df$var) %/% 3 %>% mod(4) %>% match(0:3)
+
+season.df$season <- tmp$Season[uu]
+season.df$seas.lcl <- tmp$Season.lcl[uu]
+season.df$seas.ucl <- tmp$Season.ucl[uu]
+
+
+figs$figure.08 <- season.df %>% ggplot() + aes(x=var, y=Estimate, ymin=lcl, ymax=ucl, group="Month", color="Month") + 
+                 geom_point() + geom_line() + geom_ribbon(alpha=0.3) + 
+                 geom_line(aes(y=season, group="Season", color="Season")) +
+                 geom_ribbon(aes(ymin=seas.lcl, ymax=seas.ucl, group="Season", color="Season"), alpha=0.3) + 
+                 theme_bw()
+
+figs$figure08a <- season.df %>% ggplot() + aes(x=var, y=Estimate, ymin=lcl, ymax=ucl, group="Month", color="Month") + 
+                 geom_point() + geom_errorbar(width=0.1) + 
+                 geom_step(aes(y=season, group="Season", color="Season"), position=position_nudge(x=-.5)) +
+                 geom_ribbon(aes(ymin=seas.lcl, ymax=seas.ucl, group="Season", color="Season"), alpha=0.3) + 
+                 theme_bw()
+
+figs$figure.08
+```
+
+Looking at season, there is a slight peak in home battery fires over the summer.
+Beyond that, it is possible that December battery fires are anomalously high, but 
+such results are not statistically significant.
+
+## Severity
+
+```{r sev-base}
+sev.base <- list(room=data.summ %>% filter(inc_type == '11', year > 2010) %>% select(-(1:3)) %>% 
+                   glm(cbind(room, fires - room)~ 1, data=., family=quasibinomial),
+                 struc=data.summ %>% filter(inc_type == '11', year > 2010) %>% select(-(1:3)) %>% 
+                   glm(cbind(struc, fires - struc)~ 1, data=., family=quasibinomial),
+                 beyond=data.summ %>% filter(inc_type == '11', year > 2010) %>% select(-(1:3)) %>% 
+                   glm(cbind(beyond, fires - beyond)~ 1, data=., family=quasibinomial))
+
+sev.base$summary <- sapply(sev.base, 
+                           function(x){
+                             q <- coef(x)
+                             s <- sqrt(vcov(x)[1,1])
+                             c(q, s, plogis(q), 
+                               plogis(q + qnorm(0.025) * s), 
+                               plogis(q + qnorm(0.975) * s))
+                             }
+                           ) %>% 
+       t() %>% as.data.frame() %>% setNames(c("logit(p)", "s", "p", "lcl", "ucl"))
+```
+
+```{r sev}
+sev.dat <- details %>% filter(! fire_sprd %in% c("", "NULL")) %>% 
+           mutate(sev = factor(ifelse(fire_sprd == 3, 4, fire_sprd)))
+
+sev.results <- list(
+  all= sev.dat %>% mutate(yr = year - 2015) %>% group_by(yr, sev) %>% 
+                   summarize(fires = n()) %>% arrange(desc(sev)) %>% 
+                   mutate(batts=cumsum(fires), not=sum(fires) - batts) %>% 
+                   filter(sev != '1') %>%
+                   glm(cbind(batts, not) ~ sev, data=., family=quasibinomial),
+  home=sev.dat %>% filter(prop_use %in% c('419', '429')) %>%
+                   mutate(yr = year - 2015) %>% group_by(yr, sev) %>% 
+                   summarize(fires = n()) %>% arrange(desc(sev)) %>% 
+                   mutate(batts=cumsum(fires), not=sum(fires) - batts) %>% 
+                   filter(sev != '1') %>%
+                   glm(cbind(batts, not) ~ sev, data=., family=quasibinomial),
+  other=sev.dat %>% filter(! prop_use %in% c('419', '429')) %>%
+                   mutate(yr = year - 2015) %>% group_by(yr, sev) %>% 
+                   summarize(fires = n()) %>% arrange(desc(sev)) %>% 
+                   mutate(batts=cumsum(fires), not=sum(fires) - batts) %>% 
+                   filter(sev != '1') %>%
+                   glm(cbind(batts, not) ~ sev, data=., family=quasibinomial))
+
+sev.df <- NULL
+
+for(i in names(sev.results)){
+  uuu <- sev.results[[i]]
+  sev.df <- rbind(sev.df, 
+                  data.frame(group=i,
+                       sev=factor(c("room", "structure", "beyond"),
+                                  levels=c("room", "structure", "beyond")), 
+                       val=uuu %>% coef(),
+                       se =uuu %>% vcov() %>% diag() %>% sqrt()))
+}
+
+sev.df$lcl <- with(sev.df, val + qnorm(0.025) * se)
+sev.df$ucl <- with(sev.df, val + qnorm(0.975) * se)
+
+rm(uuu, i, sev.dat)
+
+figs$figure.09 <- sev.df %>% mutate(val=plogis(val), lcl=plogis(lcl), ucl=plogis(ucl))%>%
+           ggplot() + aes(x=sev, y=val, ymin=lcl, ymax=ucl) +
+           geom_point() + geom_path(group=1) + geom_ribbon(group=1, alpha=0.3) +
+           facet_wrap(~ group) + theme_bw()
+
+figs$figure.09a <- sev.df %>% filter(group != "all") %>% 
+           mutate(val=plogis(val), lcl=plogis(lcl), ucl=plogis(ucl))%>%
+           ggplot() + aes(x=sev, y=val, ymin=lcl, ymax=ucl, group=group, color=group) +
+           geom_point() + geom_errorbar(width=.05) + 
+           xlab("") + ylab("Probability") + theme_bw()
+
+
+figs$figure.09b <- sev.base$summary[,-3] %>% 
+   { cbind(group="baseline", sev=c("room", "structure", "beyond") , .)} %>% 
+   mutate(lcl=qlogis(lcl), ucl=qlogis(ucl)) %>% 
+   setNames(c("group", "sev", "val", "se", "lcl", "ucl")) %>% 
+   rbind(sev.df, .) %>% filter(group != "all") %>% 
+   mutate(val=plogis(val), lcl=plogis(lcl), ucl=plogis(ucl))%>%
+   ggplot() + aes(x=sev, y=val, ymin=lcl, ymax=ucl, group=group, color=group) +
+      geom_point() + geom_errorbar(width=.05) + 
+      xlab("") + ylab("Probability") + theme_bw()
+
+figs$figure.09
+```
+
+This represents the probability of a battery fire of the size specified or bigger 
+for all battery fires, home battery fires, and all battery structure fires that 
+are not in homes.
+
+```{r fig6a}
+figs$figure.7b
+```
+
+This specifically compares those values for home v. not-home fires. Home fires
+are more likely to expand to the room of origin (beyond the object of origin)
+than other fires. But other fires are more likely to expand beyond the room 
+or origin or beyond the structure of origin. It seems likely this reflects
+the size of the battery pack that initiated the blaze. Home fires are more 
+likely to expand beyond the object of origin but less likely to get bigger 
+than that.
+
+## Room in Home
+
+```{r room}
+# The following table takes the area of origin field in `details` and 
+# consolidates them into a smaller number of (hopefully) more meaningful
+# categories.
+area_orig <- data.frame(area_orig=sort(unique(details$area_orig)))
+area_orig$NewCode <- c("Other", "Hall/Stair", "Exterior", "Hall/Stair", "Entrance/Exit",
+                       "Entrance/Exit", "Common Area", "Common Area", "Nonresidential",
+                       "Nonresidential", "Common Area", "Nonresidential", "Other",
+                       "Bedroom", "Bedroom", "Dining Room", "Kitchen", "Bathroom",
+                       "Laundry", "Office", "Bathroom", "Nonresidential", 
+                       "Nonresidential", "Nonresidential", "Nonresidential", 
+                       "Nonresidential", "Nonresidential", "Other", "Storage", 
+                       "Storage", "Closet", "Storage", "Nonresidential", "Other", 
+                       "Garage", "Other", "Equipment", "Equipment", "Nonresidential",
+                       "Equipment", "Equipment", "Equipment", "Nonresidential", 
+                       "Structure", "Structure", "Exterior", "Nonresidential", 
+                       "Nonresidential", "Structure", "Exterior", "Nonresidential",
+                       "Exterior", "Garage", "Garage", "Garage", "Garage", "Other",
+                       "Garage", "Exterior", "Exterior", "Nonresidential", 
+                       "Nonresidential", "Exterior", "Exterior", "Nonresidential",
+                       "Undetermined")
+
+room.res <- details %>% merge(area_orig, by="area_orig") %>% 
+            filter(prop_use %in% c('419', '429')) %>% 
+            mutate(yr = year - 2015, rooms=factor(NewCode) %>% relevel("Bedroom")) %>% 
+            group_by(yr, rooms) %>% summarize(fires=n()) %>%
+            glm(fires ~ yr + rooms, data=., family=quasipoisson)
+
+room.df <- data.frame(room=room.res %>% coef() %>% names(),
+                       val=room.res %>% coef(),
+                        se=room.res %>% vcov() %>% diag() %>% sqrt())
+room.df <- room.df[-2,]
+room.df$room[1] <- "Bedroom"
+room.df[1,2:3] <- 0
+room.df$room <- room.df$room %>% sub("^rooms", "", .)
+room.df$lcl <- with(room.df, val + qnorm(0.025) * se)
+room.df$ucl <- with(room.df, val + qnorm(0.975) * se)
+
+room.df$room <- factor(room.df$room, 
+                       levels=room.df$room[order(room.df$val, decreasing=TRUE)])
+
+figs$figure.0a <- room.df %>% ggplot() + aes(x=room, y=val, ymin=lcl, ymax=ucl) +
+            geom_point() + geom_errorbar(width=0.1) + 
+            scale_x_discrete(guide = guide_axis(angle = 90)) + xlab("") + ylab("")
+
+figs$figure.0a
+```
+
+```{r play-with-rankings}
+N <- 1000
+mu <- coef(room.res)[-(1:2)]
+Sigma <- vcov(room.res)[-(1:2), -(1:2)] %>% eigen()
+nv <- length(mu)
+nm <- c("Bathroom", names(mu) %>% sub("^rooms", "", .))
+
+vals <- rnorm(nv * N) %>% matrix(ncol=N)
+vals <- mu + Sigma$vectors %*% diag(sqrt(Sigma$values)) %*% vals
+vals <- rbind(0, vals)
+
+ranks <- as.integer(NA) %>% matrix(ncol=N, nrow=nv + 1)
+for(i in 1:N){ ranks[,i] <- rank(vals[,i], ties.method="first") }
+ranks <- ranks %>% t() %>% as.data.frame() %>% setNames(nm)
+
+rank.list <- as.integer(0) %>% matrix(ncol=nv + 1, nrow=nv + 1)
+colnames(rank.list) <- nm
+row.names(rank.list) <- 1:(nv + 1)
+
+for(i in names(ranks)){
+  uuu <- ranks[[i]] %>% table() %>% { c(as.integer(names(.)), as.integer(.)) } %>% matrix(ncol=2)
+  rank.list[uuu[,1], i] <- uuu[,2]
+}
+
+# I am probably not going to print this out, but I will keep it in case
+# it ever becomes useful. The discussion below relies on this, though,
+# for some of its conclusions.
+
+rm(uuu, vals, ranks, i, nv, nm, N, mu, Sigma)
+```
+
+The garage is the number one area of origin for battery fires, followed by the 
+bedroom and common areas. The kitchen is fourth, with other areas following after
+those.
+
+```{r cleanup-02}
+# Save the relevant file, as below. Then delete everything if you are working in bookdown.
+# That means that a `bookdown` flag needs to be set somehow. And then unset at the end.
+save(list=intersect(keep2, ls()), file=paste0(intmdt_dir, "NFIRS.RData"))
+rm(list=setdiff(ls(), keep))
+```

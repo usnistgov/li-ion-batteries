@@ -1,0 +1,507 @@
+---
+title: "Batteries"
+subtitle: "Capture-Recapture Estimates"
+output: html_document
+date: "2024-12-13"
+---
+
+# Combined NFIRS and CPSC
+
+```{r setup-04, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(rstan)
+
+keep <- ls()
+
+if(! exists("csv_dir")){
+  csv_dir <- "csv/"
+}
+if(! exists("intmdt_dir")){
+  intmdt_dir <- "rdata/"
+}
+
+# Either load the completed data (currently in .RData, but henceforth in NFIRS.RData) 
+# or the relevant compiled data in NFIRS.Data.RData.
+ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
+if("recapture.rdata" %in% tolower(ff)){
+  fg <- "recapture.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+} else if("recapture.data.rdata" %in% tolower(ff)){
+  fg <- "recapture.data.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+} else {
+  stop("The data files needed for the NFIRS analysis are not present!")
+}
+load(paste0(intmdt_dir, fg))
+rm(ff, fg)
+
+keep2 <- c("incidents", "details", "cpsc.wk", "fire.reports", "overlap", "yearly",
+           "cpsc.wk1", "overlap1", "stan.con.model", "stan.con.mdl1", "stan.con.fit",
+           "stan.con.fit1", "yearly.stan", "incident.lda")
+
+ff <- c("incident.lda", "fire.reports") %in% ls()
+if(! all(ff)){
+  e <- new.env()
+  load(paste0(intmdt_dir, "cpsc.RData"), e)
+  incident.lda <- e$incident.lda
+  fire.reports <- e$fire.reports
+  rm(e)
+}
+```
+
+## Connect to NFIRS
+
+```{r connect-prep, eval=FALSE}
+cpsc.wk <- incidents[! is.na(fire.reports), c("Report.Date", "City", "State", "ZIP",
+                                              "Location", "X.Primary..Victim.Severity",
+                                              "Incident.Description")] %>% 
+  rename(Severity = X.Primary..Victim.Severity) %>% 
+  mutate(st_abb=as.character(NA),
+         Severity=ifelse(grepl("^Injury", Severity), "Injury", Severity),
+         Severity=ifelse(grepl("^Incident", Severity), "Incident", Severity),
+         Severity=ifelse(grepl("Unspecified", Severity), "Unspecified", Severity))
+cpsc.wk$st_abb <- states$abb[match(tolower(cpsc.wk$State), tolower(states$Name))]
+cpsc.wk <- cpsc.wk %>% mutate(st_abb=ifelse(is.na(st_abb), 
+                                    ifelse(State %in% states$abb, 
+                                           State,
+                                           ifelse(State == "District of Columbia", 
+                                                  "DC", NA)), 
+                                    st_abb),
+                              Report.Date=lubridate::mdy(Report.Date))
+
+# This set of corrections is the product of painstakingly going through the 
+# cases where there is no valid state, but a city name exists. Then looking up
+# the ZIP codes and checking.
+t2 <- cpsc.wk %>% filter(is.na(st_abb), ! is.na(City)) %>% row.names()
+cpsc.wk$st_abb[row.names(cpsc.wk) %in% t2] <- c(NA, NA, "NY", 'ME', "NM", NA, "MI",
+                                                "CA", NA, NA, "CA", NA, NA, "WI", NA,
+                                                "FL", NA, NA, "TX", NA, "UT", "KS",
+                                                "CA", "CA", "SD", "PA", NA, "NY", NA,
+                                                NA, "NC", NA, "CA", "PA", NA, NA, NA,
+                                                "WV", NA, "NC")
+rm(t2)
+
+cpsc.wk <- cpsc.wk %>% filter(! is.na(st_abb))
+```
+
+
+```{r connecting, eval=! exists("overlap")}
+
+tmp <- match(with(cpsc.wk, paste0(City, ", ", st_abb, ": ",
+                                  Report.Date %>% lubridate::year()) %>% tolower()), 
+             with(details, paste0(city, ", ", state_id, ": ", year) %>% tolower()))
+
+overlap <- cbind(cpsc.wk %>% {.[(1:nrow(cpsc.wk))[! is.na(tmp)],
+                                c("City", "st_abb", "ZIP", "Report.Date", 
+                                  "Location", "Severity")]},
+                 details[tmp[! is.na(tmp)],c(12:14,5,7)])
+
+
+yearly <- data.frame(Year=c(2011:2023, 0, -(1:4)), 
+                     cpsc=c(cpsc.wk %>% mutate(year=lubridate::year(Report.Date)) %>% 
+                              filter(year < 2024) %>% with(table(year)), rep(NA, 5)),
+                     nfirs=c(details %>% with(table(year)), rep(NA, 5)),
+                     overlap=c(overlap %>% mutate(year=lubridate::year(Report.Date)) %>%
+                                 filter(year < 2024) %>% with(table(year)), rep(NA, 5)))
+
+# `yearly` is structured so that the first 13 rows are the years from 2011-2023
+# Year 0, then is the total of all years
+# Year -1 to -4 are different versions of total number of injuries.
+
+yearly$cpsc[14]    <- sum(yearly$cpsc[1:13])
+yearly$nfirs[14]   <- sum(yearly$nfirs[1:13])
+yearly$overlap[14] <- sum(yearly$overlap[1:13])
+yearly$cpsc[15:18] <- cpsc.wk %>% filter(Severity %in% c("Injury", "Death")) %>% nrow()
+yearly$nfirs[15:18]<- details %>% filter(casualties == "Yes") %>% nrow()
+yearly$overlap[15] <- overlap %>% filter(Severity %in% c("Injury", "Death")) %>% nrow()
+yearly$overlap[16] <- overlap %>% filter(casualties == "Yes") %>% nrow()
+yearly$overlap[17] <- overlap %>% filter(Severity %in% c("Injury", "Death"), 
+                                         casualties == "Yes") %>% nrow()
+yearly$overlap[18] <- overlap %>% filter(Severity %in% c("Injury", "Death") | 
+                                           casualties == "Yes") %>% nrow()
+
+yearly$N  <- with(yearly, ((cpsc + 1) * (nfirs + 1) / (overlap + 1)) - 1)
+yearly$se <- with(yearly, sqrt((N - cpsc) * (N - nfirs) / overlap))
+yearly$lcl <- yearly$N + qnorm(0.025) * yearly$se
+yearly$ucl <- yearly$N + qnorm(0.975) * yearly$se
+```
+
+
+```{r alternative}
+# I didn't trust the 0.1 cutoff for the LDA topic analysis. So this 
+# goes through several different approaches to including topics.
+# The question is whether this produces different results than 
+# the approach described above.
+#
+# The answer is that it does not, but this documents that process
+# so it can be double-checked as necessary.
+
+# This uses four different criteria for including a topic.
+#  a.25: ANY of the topics tops a 25% rating
+#  s.25: The SUM of the topics tops a 25% rating
+#  s.50: The SUM of the topics tops a 50% rating
+#  m   : Any of the topics is the top topic associated with that report
+cpsc.wk1 <- list(a.25=apply(incident.lda$theta[,c(10,19,25,26,45)], 1, 
+                            function(x) any(x > 0.25)) %>% 
+                      {.[! is.na(fire.reports)]} %>% {cpsc.wk[.,]},
+                 s.25=apply(incident.lda$theta[,c(10,19,25,26,45)], 1, sum) %>%
+                      is_greater_than(0.25) %>% {.[! is.na(fire.reports)]} %>%
+                      {cpsc.wk[.,]},
+                 s.50=apply(incident.lda$theta[,c(10,19,25,26,45)], 1, sum) %>%
+                      is_greater_than(0.5) %>% {.[! is.na(fire.reports)]} %>%
+                      {cpsc.wk[.,]},
+                 m=apply(incident.lda$theta, 1, function(x) match(max(x), x)) %>%
+                      is_in(c(10,19,25,26,45)) %>% {.[! is.na(fire.reports)]} %>%
+                      {cpsc.wk[.,]})
+
+tmp <- lapply(cpsc.wk1, function(x) match(with(x, paste0(City, ", ", st_abb, ": ",
+                  Report.Date %>% lubridate::year()) %>%
+                  tolower()),with(details, paste0(city, ", ", state_id, ": ", year) %>%
+                                    tolower())))
+
+overlap1 <- list()
+for(i in names(tmp)){
+   overlap1[[i]] <- cbind(cpsc.wk1[[i]] %>% {.[(1:nrow(cpsc.wk1[[i]]))[! is.na(tmp[[i]])],
+                                         c("City", "st_abb", "ZIP", "Report.Date", 
+                                           "Location", "Severity")]},
+                          details[tmp[[i]][! is.na(tmp[[i]])],c(12:14,5,7)])
+}
+
+tmp <- list()
+for(i in names(cpsc.wk1)){
+ tmp[[i]] <- data.frame(year=2011:2023,
+                      cpsc=cpsc.wk1[[i]] %>% mutate(year=lubridate::year(Report.Date)) %>%
+                        filter(year < 2024) %>% with(table(year)) %>% as.vector(),
+                      nfirs=yearly$nfirs[1:13],
+                      overlap=overlap1[[i]]$Report.Date %>% lubridate::year() %>%
+                        factor(levels=2011:2023) %>% table() %>% as.vector()) %>% 
+              rbind(., colSums(.)) %>% cbind(test=i, .)
+}
+
+tmp <- tmp %>% do.call("rbind", .) %>% mutate(N=cpsc * nfirs / overlap)
+# This plots all the different versions. The baseline (which is what is reported)
+# falls near the middle. This plot should probably not be in the report.
+figs$figure.20 <- tmp %>% filter(year < 2100, N < Inf) %>% ggplot() + 
+  aes(x=year, y=N, color=test, group=test) + geom_point() + geom_line() +
+  geom_point(aes(x=Year, y=N, color="base", group="base"), data=yearly[1:13,]) +
+  geom_line(aes(x=Year, y=N, color="base", group="base"), data=yearly[1:13,]) +
+  expand_limits(y=0) + scale_x_continuous(minor_breaks=2011:2023)
+print(figs$figure.20)
+```
+
+The idea here is that if you have two (or more) independent samples of a 
+population, you can exploit that to estimate the size of the population
+provided you have some cases that can be identified in both samples.
+The approach was pioneered by Petersen (C. Petersen, "The yearly immigration of young
+plaice, into the Limfjord from the German Sea" *Rept. Danish Biol. Sta.* 1896, 6, 1-48). 
+Here the model is estimated using Bayesian Markov Chain Monte Carlo techniques.
+
+Let *N* be the size of the population, and $p_i$ be the probability of any 
+individual from the population occurring in sample *i* 
+(where $i \in \left\{\mathrm{cpsc}, \mathrm{nfirs}\right\}$). 
+Then the size of sample *i* is distributed as:
+
+$$S_i \sim Binom\left(N, p_i \right)$$
+
+and the number of individual cases in ***both*** samples is distributed as:
+
+$$S_{ij} \sim Binom\left(N, p_{cpsc} \cdot p_{nfirs} \right)$$
+
+Model was estimated using STAN (Stan Development Team. 2025. Stan User’s Guide, 2.36. https://mc-stan.org).
+
+Overlap in the cases were identified by matching city, state and year. While 
+there may be some spurious overlaps given the approximate measures used to 
+identify overlaps, cases are rare enough that overlaps are unlikely.
+
+```{stan connect-stan, output.var="stan.con.model", eval=! exists("stan.con.model")}
+data {
+  int<lower=2>         N;        // Number of independent surveys
+  matrix[N, N]         X;        // Counts. Only the lower-triangular part is used
+}
+
+transformed data {
+  real     min_M;
+  real     scale_M = 0;
+  for(i in 2:N){
+    for(j in 1:(i - 1)){
+    scale_M += X[i,i] * X[j,j] / X[i,j];
+  }}
+  scale_M = 2 * scale_M / (N * (N - 1));
+  
+  min_M = max(diagonal(X)) / scale_M;
+}
+
+parameters {
+  vector<lower=0, upper=1>[N]   p;
+  real<lower=min_M>             M_hat;
+}
+
+transformed parameters {
+  real    M = M_hat * scale_M;
+}
+
+model {
+  real   q;
+  real   val;
+  for(i in 1:N){
+    for(j in 1:i){
+      if(i == j){
+        q = p[i];
+      } else {
+        q = p[i] * p[j];
+      }
+      val = X[i,j];
+      
+      target += lgamma(M + 1) - lgamma(val + 1) - lgamma(M - val + 1)
+                + val * log(q) + (M - val) * log(1 - q);
+  }}
+}
+
+generated quantities {
+}
+```
+
+
+```{stan connect-stan-r1, output.var="stan.con.mdl1", eval=! exists("stan.con.mdl1")}
+// This differs from the version above in that it computes a slope over time
+// instead of computing estimated values for each year separately.
+data {
+  int<lower=1>          T;       // Number of time periods
+  vector[T]             S1;      // Sample 1 Counts
+  vector[T]             S2;      // Sample 2 Counts
+  vector[T]             So;      // Sample Overlap Counts
+  int<lower=0, upper=1> slope1;  // 0: No; 1: Yes
+  int<lower=0, upper=1> slope2;  // 0: No; 1: Yes
+}
+
+transformed data {
+
+  matrix[T,3]    dats = append_col(append_col(S1, S2), So);
+  
+  real     min_N;
+  real     scale_N = 0;
+  for(i in 1:T){
+    scale_N += S1[i] * S2[i] / So[i];
+  }
+  scale_N = scale_N / T;
+  
+  min_N = max(append_row(S1, S2)) / scale_N;
+}
+
+parameters {
+  vector[1 + slope1]       p1_lgt;
+  vector[1 + slope2]       p2_lgt;
+  real                     r;
+  real<lower=min_N>        N_hat;
+}
+
+transformed parameters {
+  vector[T]    N;
+  vector[T]    p1;
+  vector[T]    p2;
+  for(i in 1:T){
+    N[i] = N_hat * scale_N * exp((i - 1) * r);
+    if(slope1 == 1){
+      p1[i] = inv_logit(p1_lgt[1] + (i - 1) * p1_lgt[2]);
+    } else {
+      p1[i] = inv_logit(p1_lgt[1]);
+    }
+    if(slope2 == 1){
+      p2[i] = inv_logit(p2_lgt[1] + (i - 1) * p2_lgt[2]);
+    } else {
+      p2[i] = inv_logit(p2_lgt[1]);
+    }
+  }
+}
+
+model {
+  matrix[T, 3]   p_hat = append_col(append_col(p1, p2), p1 .* p2);
+  for(i in 1:T){
+    for(j in 1:3){
+      target += lgamma(N[i] + 1) - lgamma(dats[i,j] + 1) - lgamma(N[i] - dats[i,j] + 1)
+              + dats[i,j] * log(p_hat[i,j]) + (N[i] - dats[i,j]) * log(1 - p_hat[i,j]);
+  }}
+}
+
+generated quantities {
+}
+```
+
+```{r con-stan-run, eval=! exists("stan.con.fit")}
+stan.con.fit <- list()
+st.data <- list(N=2, X=NA)
+for(i in 1:nrow(yearly)){
+  st.data$X <- with(yearly, matrix(c(cpsc[i], overlap[i], 0, nfirs[i]), nrow=2))
+  stan.con.fit[[i]] <- sampling(stan.con.model, data=st.data)
+}
+```
+
+```{r con-stan-run1, eval=! exists("stan.con.fit1")}
+st.data1 <- yearly %>% filter(Year > 1000) %>% 
+            with(list(T=length(Year),
+                      S1=cpsc,
+                      S2=nfirs,
+                      So=overlap,
+                      slope1=0,
+                      slope2=1))
+
+inits <- list(list(p1_lgt=c(-3, 0), p2_lgt=c(-3, 0), r=0.1, M_hat=0.5),
+              list(p1_lgt=c(-3, 0), p2_lgt=c(-3, 0), r=0.1, M_hat=0.5),
+              list(p1_lgt=c(-3, 0), p2_lgt=c(-3, 0), r=0.1, M_hat=0.5),
+              list(p1_lgt=c(-3, 0), p2_lgt=c(-3, 0), r=0.1, M_hat=0.5))
+
+inits <- function(){
+  list(p1_lgt=as.array(rnorm(1, -3, .25)), 
+       p2_lgt=rnorm(2, c(-3, 0), 0.25),
+       r=rnorm(1, 0, 0.2),
+       M_hat=rnorm(1, 1, 0.25))
+}
+
+stan.con.fit1 <- sampling(stan.con.mdl1, data=st.data1, init=inits, 
+                          iter=2000, warmup=1000)
+```
+
+```{r con-stan-res}
+yearly.stan <- yearly[,1:4]
+
+ww <- NULL
+vv <- NULL
+for(i in 1:length(stan.con.fit)){
+  ww <- rbind(ww, rstan::extract(stan.con.fit[[i]], "M")[[1]] %>% 
+        { c(mean(.), sd(.), quantile(., c(0.025, 0.5, 0.975))) })
+  vv <- cbind(vv, rstan::extract(stan.con.fit[[i]], "p")[[1]] %>% 
+        apply(2, function(x) c(mean(x), sd(x), quantile(x, c(0.025, 0.5, 0.975)))))
+}
+
+ww <- ww[,-4] %>% as.data.frame() %>% 
+      setNames(c("N", paste0("N.", c("se", "lcl", "ucl"))))
+v1 <- vv[-4,1:ncol(vv) %% 2 == 1] %>% t() %>% as.data.frame() %>% 
+      setNames(c("p.cpsc", paste0("p.cpsc.", c("se", "lcl", "ucl"))))
+v2 <- vv[-4,1:ncol(vv) %% 2 == 0] %>% t() %>% as.data.frame() %>% 
+      setNames(c("p.nfirs", paste0("p.nfirs.", c("se", "lcl", "ucl"))))
+
+yearly.stan <- cbind(yearly.stan, ww, v1, v2)
+```
+
+
+```{r con-stan-res1}
+yearly.stan1 <- yearly[1:13,1:4]
+
+yearly.stan1 <- cbind(yearly.stan1, 
+                      stan.con.fit1 %>% { rstan::extract(., "M")[[1]] } %>% 
+                        apply(2, function(x) c(mean(x), sd(x), 
+                                               quantile(x, c(0.5, 0.025, 0.975)))) %>%
+                        t() %>% as.data.frame() %>% 
+                        setNames(c("N", "N.se", "N.median", "N.lcl", "N.ucl")),
+                      stan.con.fit1 %>% { rstan::extract(., "p1")[[1]] } %>% 
+                        apply(2, function(x) c(mean(x), sd(x), 
+                                               quantile(x, c(0.5, 0.025, 0.975)))) %>%
+                        t() %>% as.data.frame() %>% 
+                        setNames(c("p.cpsc", "p.cpsc.se", "p.cpsc.median", 
+                                   "p.cpsc.lcl", "p.cpsc.ucl")),
+                      stan.con.fit1 %>% { rstan::extract(., "p2")[[1]] } %>% 
+                        apply(2, function(x) c(mean(x), sd(x), 
+                                               quantile(x, c(0.5, 0.025, 0.975)))) %>%
+                        t() %>% as.data.frame() %>% 
+                        setNames(c("p.nfirs", "p.nfirs.se", "p.nfirs.median",
+                                   "p.nfirs.lcl", "p.nfirs.ucl")))
+
+slopey <- rbind(stan.con.fit1 %>% {rstan::extract(., "r")[[1]] } %>% {exp(.) - 1} %>% 
+                    {c(mean(.), sd(.), quantile(., c(0.5, 0.025, 0.975))) },
+                stan.con.fit1 %>% {rstan::extract(., "p1_lgt")[[1]][,2] } %>% 
+                    {c(mean(.), sd(.), quantile(., c(0.5, 0.025, 0.975))) },
+                stan.con.fit1 %>% {rstan::extract(., "p2_lgt")[[1]][,2] } %>% 
+                    {c(mean(.), sd(.), quantile(., c(0.5, 0.025, 0.975))) }) %>%
+          as.data.frame() %>% setNames(c("mean", "se", "median", "lcl", "ucl"))
+
+slopey <- cbind(var=c("r", "p_cpsc", "p_nfirs"), slopey)
+```
+
+There were `r yearly.stan[14,2]` relevant cases in the CPSC data and 
+`r yearly.stan[14, 3]` relevant cases from the NFIRS data, with an overlap 
+of `r yearly.stan[14,4]` cases. This implies a total population of battery
+fires of approximately `r yearly.stan[14,5] %>% round(-3) %>% formatC(format="d")` 
+(confidence interval: 
+`r yearly.stan[14,7] %>% round(-3) %>% formatC(format="d")` - 
+`r yearly.stan[14,8] %>% round(-3) %>% formatC(format="d")`).
+
+The chart below shows the estimated number of battery fires by year between 
+2011 and 2023.
+
+```{r overlap-graph}
+figs$figure.21 <- yearly.stan %>% filter(Year > 2000) %>% ggplot() + 
+          aes(x=Year, y=N, ymin=N.lcl, ymax=N.ucl) + 
+          geom_point() + geom_line() + geom_ribbon(alpha=0.3) +
+          geom_line(data=yearly.stan1, color="blue") + 
+          geom_ribbon(data=yearly.stan1, color="blue", alpha=0.3) + 
+          scale_x_continuous(breaks=2010 + 5 * 0:3, minor_breaks = 2010:2025) +
+          expand_limits(x=2010) + theme_bw()
+print(figs$figure.21)
+```
+
+
+```{r p-nfirs-graph}
+figs$figure.22 <- yearly.stan %>% filter(Year > 2000) %>% ggplot() + 
+          aes(x=Year, y=p.nfirs, ymin=p.nfirs.lcl, ymax=p.nfirs.ucl) + 
+          geom_point() + geom_line() + geom_ribbon(alpha=0.3) +
+          geom_line(data=yearly.stan1, color="blue") + 
+          geom_ribbon(data=yearly.stan1, color="blue", alpha=0.3) +
+          scale_x_continuous(breaks=2010 + 5 * 0:3, minor_breaks = 2010:2025)
+print(figs$figure.22)
+```
+
+
+```{r p-cpsc-graph}
+figs$figure.23 <- yearly.stan %>% filter(Year > 2000) %>% ggplot() + 
+          aes(x=Year, y=p.cpsc, ymin=p.cpsc.lcl, ymax=p.cpsc.ucl) + 
+          geom_point() + geom_line() + geom_ribbon(alpha=0.3) +
+          geom_line(data=yearly.stan1, color="blue") + 
+          geom_ribbon(data=yearly.stan1, color="blue", alpha=0.3) +
+          scale_x_continuous(breaks=2010 + 5 * 0:3, minor_breaks = 2010:2025)
+print(figs$figure.23)
+```
+
+Growth rate in the estimated number of battery fires is 
+`r (slopey$mean[1] * 100) %>% formatC(digits=2)`&nbsp;% 
+(95&nbsp;% confidence interval: `r (slopey$lcl[1] * 100) %>% formatC(digits=2)` - 
+`r (slopey$ucl[1] * 100) %>% formatC(digits=2)`&nbsp;%) per year. The sampling 
+rate for battery fires in the CPSC data does not change significantly over time, 
+while the sampling rate for battery fires in the NFIRS data increases from 
+`r (yearly.stan1$p.nfirs[1] * 100) %>% formatC(digits=2)`&nbsp;% 
+(95&nbsp;% confidence interval: 
+`r (yearly.stan1$p.nfirs.lcl[1] * 100) %>% formatC(digits=2)` - 
+`r (yearly.stan1$p.nfirs.ucl[1] * 100) %>% formatC(digits=2)`&nbsp;%) in 2011 to 
+`r (yearly.stan1$p.nfirs[13] * 100) %>% formatC(digits=2)`&nbsp;%  
+(95&nbsp;% confidence interval:
+`r (yearly.stan1$p.nfirs.lcl[13] * 100) %>% formatC(digits=2)` - 
+`r (yearly.stan1$p.nfirs.ucl[13] * 100) %>% formatC(digits=2)`&nbsp;%) in 2023.
+
+## Injuries
+
+There is not enough data to estimate yearly values for injuries. Overlaps for 
+injuries are more difficult since injuries are not always reported. An example 
+of that is a fire in Washington that is in both data sets, where a minor injury 
+is reported in the CPSC data set but is not reported in the NFIRS data set.
+Number of injuries depends on how overlapping number of injuries is counted. 
+If an injury is counted if it is recorded in *both* data sets, then there were
+`r yearly.stan$N[17] %>% round(-2) %>% formatC(format="d", big.mark = "&nbsp;")`
+(95&nbsp;% confidence interval: 
+`r yearly.stan$N.lcl[17] %>% round(-2) %>% formatC(format="d")` - 
+`r yearly.stan$N.ucl[17] %>% round(-2) %>% formatC(format="d", big.mark = "&nbsp;")`) 
+injuries related to battery fires between 2011 and 2023. If an injury is counted if 
+it is recorded in *either* data set, then there were 
+`r yearly.stan$N[18] %>% round(-2) %>% formatC(format="d", big.mark = "&nbsp;")`
+(95&nbsp;% confidence interval: 
+`r yearly.stan$N.lcl[18] %>% round(-2) %>% formatC(format="d")` - 
+`r yearly.stan$N.ucl[18] %>% round(-2) %>% formatC(format="d", big.mark = "&nbsp;")`) 
+injuries related to battery fires between 2011 and 2023. 
+
+```{r cleanup-04}
+# Save the relevant file, as below. Then delete everything if you are working in bookdown.
+# That means that a `bookdown` flag needs to be set somehow. And then unset at the end.
+save(list=intersect(keep2, ls()), file=paste0(intmdt_dir, "recapture.RData"))
+rm(list=setdiff(ls(), keep))
+```

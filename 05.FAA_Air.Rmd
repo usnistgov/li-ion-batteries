@@ -1,0 +1,155 @@
+---
+title: "Batteries"
+subtitle: "FAA Air Incidents"
+output: html_document
+date: "2024-12-13"
+---
+
+# FAA Air Incidents
+
+```{r setup-05, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(rstan)
+
+keep <- ls()
+
+if(! exists("csv_dir")){
+  csv_dir <- "csv/"
+}
+if(! exists("intmdt_dir")){
+  intmdt_dir <- "rdata/"
+}
+
+ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
+if("faa_air.rdata" %in% tolower(ff)){
+  fg <- "faa_air.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+  load(paste0(intmdt_dir, fg))
+}
+rm(ff, fg)
+
+ keep2 <- c("hot.air", "stan.air", "air.stan", "figs")
+```
+
+```{r faa-air, eval=! exists("hot.air")}
+#The data used here are found at this site:
+# https://www.faa.gov/hazmat/resources/lithium_batteries/incidents
+# 
+# The data was downloaded and imported for use.
+hot.air <- paste0(csv_dir, "FAA Air.csv") %>% read.csv()
+hot.air$X <- NULL
+hot.air$Incident.Date <- as.Date(hot.air$Incident.Date)
+```
+
+```{r air-prelim}
+air.lm <- hot.air %>% mutate(year=lubridate::year(Incident.Date)) %>% 
+            filter(year > 2010, year < 2025) %>% 
+            group_by(year) %>% summarize(incidents=n()) %>% 
+            lm(log(incidents) ~ I(year - 2024), data=.)
+
+fn <- function(parms, air){
+  tmp <- parms %>% as.list() %>% with(a * plogis((air$year - b) / c))
+  dnorm(air$incidents, mean=tmp, sd=parms["sigma"], log=T)
+}
+
+air.ml <- hot.air %>% mutate(year=lubridate::year(Incident.Date)) %>% 
+  filter(year > 2010, year < 2025) %>% 
+  group_by(year) %>% summarize(incidents=n()) %>% 
+  maxLik(fn, start=c(a=200, b=2035, c=20, sigma=1), air=.)
+
+
+figs$figure.30 <- hot.air %>% mutate(year=lubridate::year(Incident.Date)) %>% 
+            filter(year > 2010, year < 2025) %>% 
+            group_by(year) %>% summarize(incidents=n()) %>% 
+            mutate(trend=predict(air.lm), 
+                   trend.se=predict(air.lm, se.fit=T)$se.fit,
+                   lcl=exp(trend + qnorm(0.025) * trend.se),
+                   ucl=exp(trend + qnorm(0.975) * trend.se),
+                   trend=exp(trend),
+                   t2=air.ml$estimate['a'] * plogis((year - air.ml$estimate['b']) / air.ml$estimate['c'])) %>% 
+           ggplot() + aes(x=year, y=incidents, ymin=lcl, ymax=ucl) + 
+              geom_point() + geom_line() + geom_line(aes(y=trend), color="blue") + 
+              geom_ribbon(alpha=0.3, color="blue") + geom_line(aes(y=t2), color="green")
+print(figs$figure.30)
+```
+
+```{stan air-stan, output.var="stan.air", eval=! exists("stan.air")}
+data {
+  int<lower=1>         N;         // Number of years
+  vector[N]            year;
+  array[N] int         incidents;
+  real                 a_var;
+}
+
+transformed data {
+}
+
+parameters {
+  real         asym;
+  real         mid_year;
+  real         scale;
+}
+
+transformed parameters {
+}
+
+model {
+  vector[N]  mean_logit = (year - mid_year) / scale;
+  incidents ~ poisson(asym * inv_logit(mean_logit));
+  asym ~ normal(200, a_var);
+}
+
+generated quantities {
+  vector[N]  year_est = asym * inv_logit((year - mid_year) / scale);
+}
+```
+
+
+```{r air-stan-est, eval=! exists("air.stan")}
+fn <- function(){
+  list(asym=rnorm(1, 150, 25),
+       mid_year=rnorm(1, 2025, 15),
+       scale=rnorm(1, 10,2),
+       sigma=rlnorm(1, 0,1))
+}
+
+
+air.stan <- hot.air %>% mutate(year=lubridate::year(Incident.Date)) %>% 
+  filter(year > 2010, year < 2025) %>% 
+  group_by(year) %>% summarize(incidents=n()) %>% 
+  with(list(N=length(year), year=year, incidents=incidents, a_var=200)) %>% 
+  sampling(stan.air, data=., init=fn, iter=4000, warmup=1000)
+```
+
+
+```{r air-stan-plot}
+hot.air %>% mutate(year=lubridate::year(Incident.Date)) %>% 
+  filter(year > 2010, year < 2025) %>% 
+  group_by(year) %>% summarize(incidents=n()) %>% 
+  mutate(growth=predict(air.lm), 
+         growth.se=predict(air.lm, se.fit=T)$se.fit,
+         g.lcl=exp(growth + qnorm(0.025) * growth.se),
+         g.ucl=exp(growth + qnorm(0.975) * growth.se),
+         growth=exp(growth),
+         logit=rstan::extract(air.stan, c("year_est"))[[1]] %>% apply(2, mean),
+         l.lcl=rstan::extract(air.stan, c("year_est"))[[1]] %>% apply(2, function(x) quantile(x, 0.025)),
+         l.ucl=rstan::extract(air.stan, c("year_est"))[[1]] %>% apply(2, function(x) quantile(x, 0.975))) %>% 
+  ggplot() + aes(x=year, y=incidents) + geom_point() + geom_line() + 
+             geom_line(aes(y=logit), color="green") + 
+             geom_ribbon(aes(ymin=l.lcl, ymax=l.ucl), color="green", alpha=0.3)
+```
+
+This fits a logistic (s-shaped) curve to the number of incidents. The number 
+of incidents is increasing over time, but the logistic curve fitted to the 
+data has moved out of the exponential growth phase into the linear growth 
+phase.
+
+
+```{r cleanup-05}
+save(list=intersect(keep2, ls()), file=paste0(intmdt_dir, "faa_air.RData"))
+rm(list=setdiff(ls(), keep))
+```
