@@ -172,8 +172,13 @@ Using Latent Dirichlet Allocation (LDA) topics are identified in the reports.
 #                       calc_coherence=T))
 #  opt.k$coherence[i] <- mean(tmp$coherence)
 #}
-cl <- parallel::makeCluster(10)
-doParallel::registerDoParallel(cl)
+if(all(c("parallel", "doParallel") %in% installed.packages()[,1])){
+  parallelism <- TRUE
+  cl <- parallel::makeCluster(10)
+  doParallel::registerDoParallel(cl)
+} else {
+  parallelism <- FALSE
+}
 opt.k <- foreach(k==1:10 * 10, .combine="rbind") %dopar% {
   a <- system.time({
     tmp <- FitLdaModel(incident.dtm1, 
@@ -185,9 +190,11 @@ opt.k <- foreach(k==1:10 * 10, .combine="rbind") %dopar% {
     })
   c(k=k, coherence=mean(tmp$coherence), dt=a[3])
 }
-parallel::stopCluster(cl)
+if(parallelism){
+  parallel::stopCluster(cl)
+}
 opt.k <- as.data.frame(opt.k)
-rm(cl)
+rm(list=intersect(ls(), c("cl", "parallelism")))
 ```
 
 ```{r opt.k}
