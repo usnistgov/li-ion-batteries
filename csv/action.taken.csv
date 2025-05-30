@@ -1,0 +1,203 @@
+"state","fdid","fd_name","year","tesla","make","mob_model","mob_year","mob_vin_no","equip_inv","act_tak1","act_tak2","act_tak3"
+"PA","40030","Hazleton Fire Department","2018","Other","Honda","",NULL,"","229","87","78",""
+"AK","25150","Central MatSu FD","2018","Other","Other Make","Unknown",NULL,"","229","11","12","86"
+"MA","17160","LOWELL","2018","Other","Ford","FUSION","2013","","229","11","",""
+"FL","10282","BROWARD COUNTY FR EMS","2018","Other","MOBILE PROPERTY MAKE","",NULL,"","229","87","",""
+"ID","01100","Boise City Fire Department","2018","Other","Other Make","","2005","","229","11","",""
+"FL","10022","HALLANDALE BEACH FIRE RESCUE","2018","Other","Toyota","Coro",NULL,"","229","45","",""
+"VA","67800","Lexington Fire Dept","2020","Other","Jeep","Liberty","2006","000000","229","12",NULL,NULL
+"GA","12102","Augusta FD","2021","Other","Chrysler","Sebring","2007","1C3LC46K57N510754","229","11",NULL,NULL
+"IL","DD392","WOOD DALE FPD","2020","Other","Ford","Taurus SE","2004","1FAFP53U74G109589","229","11","86","12"
+"RI","02800","Providence Fire Dept","2020","Other","Ford","Explorer","2015","1FM5K8D80FGB55030","229","11","82",NULL
+"IA","94007","FORT DODGE","2020","Other","Ford","E150 Cargo Van","2010","1FTNE1EWXADA14881","229","11",NULL,NULL
+"VA","81000","Virginia Beach Fire Dept","2021","Other","Chevrolet","Cobalt","2008","1G1AM18BX87165540","229","87",NULL,NULL
+"OH","83111","MASSIE TWP VOL FIRE DEPARTMENT","2020","Other","Chevrolet","cruz","2016","1G1PC5SB6F7198061","229","11",NULL,NULL
+"TX","BV609","San Benito VFD","2019","Other","Cadillac","CTS","2003","1G6DM57N330128034","229","11","86",NULL
+"AL","00313","TempFD","2021","Other","Chevrolet",NULL,NULL,"1GCEC19X54Z252203","229","11",NULL,NULL
+"CA","40080","SAN LUIS OBISPO CFD","2020","Other","Chevrolet","Silverado","2002","1GCH2913E277199","229","11",NULL,NULL
+"MN","62210","ST PAUL FIRE DEPT","2019","Other","Chevrolet","TRAILBLAZER","2004","1GNDT13S442166518","229","11",NULL,NULL
+"SC","07121","Hilton Head Island FR","2019","Other","Chevrolet","C15","1986","1GTDC14H3GF733133","229","86","45",NULL
+"IL","SB111","SPRINGFIELD FD","2020","Other","Chevrolet","Silverado","1993","1GTGC24NXPE526477","229","11",NULL,NULL
+"MA","27241","PRINCETON","2020","Other","GMC (General Motors)","VAN SAVANNA","2005","1GTHG35U251112490","229","11",NULL,NULL
+"CA","33035","ELSINORE FD","2021","Other","Honda","Civic","1999","1HGEJ7120TL079735","229","11",NULL,NULL
+"LA","36001","NEW ORLEANS FIRE DEPT","2018","Other","Nissan","Alti","2007","1N4AL11D96N436544","229","86","",""
+"FL","26032","OSCEOLA CO FIRERESCUE","2018","Other","Volkswagen","Pass","2016","1VWBT7A35GC030098","229","11","86",""
+"MN","19316","SOUTH METRO FIRE DEPT","2020","Other","Dodge","Dodge","2008","2B3KA43G18H269901","229","11",NULL,NULL
+"FL","10282","BROWARD COUNTY FR EMS","2020","Other","Dodge","Char","2009","2B3LA43D89H636336","229","11","52",NULL
+"OR","00569","Eugene Springfield Fire","2021","Other","Chrysler","300","2005","2C3LA53G06H102343","229","11",NULL,NULL
+"MA","09291","SWAMPSCOTT","2018","Other","Ford","F150","2000","2FTZF0721YCA76084","229","11","",""
+"GA","01101","MaconBibb Fire Department","2021","Other","Chevrolet","CAPRICE","1983","2G1AN69H1D1227282","229","11",NULL,NULL
+"NV","03050","CLARK COUNTY FIRE DEPARTMENT","2019","Other","Honda","Civic",NULL,"2H6EJ2241PH519578","229","86",NULL,NULL
+"CA","33010","BEAUMONT FD","2020","Other","Honda","Civic","2006","2HGFG11637H533062","229","87",NULL,NULL
+"MA","17160","LOWELL","2018","Other","Dodge","RAM UTILITY COMMERCIAL VE","2014","3C6TRVNG5EE112532","229","70","11","86"
+"OH","17001","BUCYRUS FIRE DEPARTMENT","2021","Other","Toyota","Avalon","2000","4T1BF23B0YU013632","229","11",NULL,NULL
+"FL","06301","PALM BEACH CO FIRE RESCUE","2018","Other","Toyota","toyota corolla","2000","4T1BG22K6YU933853","229","11","",""
+"FL","06301","PALM BEACH CO FIRE RESCUE","2021","Other","Toyota","Camry","2000","4T1BGZZKIYV931037","229","11",NULL,NULL
+"CA","37085","IMPERIAL BEACH FD","2020","Other","Toyota","Tacoma","1996","4TANL42N1TZ177651","229","11",NULL,NULL
+"FL","19072","MELBOURNE FIRE DEPARTMENT","2018","Other","MOBILE PROPERTY MAKE","Forest River 34SATS","2008","4X4FCRK299S202206","229","11","",""
+"ID","79234","SHOSHONE CO FPD2","2021","Other",NULL,"Platinum Wildwood FSX","2021","4X4TWDT1XMY097118","229","11",NULL,NULL
+"IL","MH163","GOOD HOPESCIOTA FPD","2021","Other","Other Make",NULL,"2018","50BXE2029JA005848","229","11","12",NULL
+"ME","C2420","Freeport Fire Department","2018","Other","UD","GATO","2014","54GVC16T8E7009871","229","11","",""
+"KY","56290","LOUISVILLE","2018","Other","Hyundai","Santa Fe","2007","5NMSG13D27H113225","229","87","",""
+"MN","31108","KEEWATIN FIRE DEPT","2021","Other","Toyota","Tacoma","2008","5TEMU52N082589557","229","10","12",NULL
+"CA","44045","PAJARO VALLEY FIRE PROT AGENCY","2020","Other","Toyota","Tacoma","2001","5TEVL52N412720330","229","11","80",NULL
+"OH","77001","AKRON FIRE DEPARTMENT","2021","Other","BMW","X6","2021","5UXCY6CO6M9G9","229","11",NULL,NULL
+"FL","10172","POMPANO BEACH FIRERESCUE","2020","Other","BMW","X","2014","5UXKROC55FOK64943","229","11","12",NULL
+"CA","49145","SANTA ROSA FD","2021","Other","Kia","Opti","2017","5XXGT4L37HG143461","229","86",NULL,NULL
+"MI","02507","Flint FD","2020","Other","Chrysler","New yorker","1977","CS23T7C178157","229","11","86",NULL
+"PA","48010","Bethlehem Fire Department","2020","Other","Kawasaki","500","2002","EX500AE276301","229","86",NULL,NULL
+"MA","17160","LOWELL","2020","Other","Honda","ACCORD","1999","JHMCG6673XC023361","229","11",NULL,NULL
+"NJ","09013","NORTH HUDSON REGIONAL FIRE RES","2021","Other","Mazda","MIATA","1992","JM1NB3536X0119606","229","86","10","12"
+"MI","02526","GAINES TOWNSHIP FIRE DEPT","2020","Other","Nissan","JN1CA31D3YT532966","1999","JN1CA31D3YT532966","229","12",NULL,NULL
+"CA","19110","LOS ANGELES COUNTY FD","2021","Other","Nissan","Rogue","2016","JN8AT2MV1GW144035","229","11",NULL,NULL
+"AL","00313","TempFD","2021","Other","Toyota","Camery","2000","JT2BG222KX0426670","229","11",NULL,NULL
+"CA","33090","RIVERSIDE CFD","2020","Other","Toyota","4 Runner","1988","JT4RN81A5193874","229","11",NULL,NULL
+"CA","41095","SOUTH SAN FRANCISCO FD","2020","Other","Lexus","GS30","2004","JT8BD69S740194924","229","11",NULL,NULL
+"HI","52000","Honolulu Fire Department","2020","Other","Toyota","Coro","2006","JTDBR32E06006039","229","11","81",NULL
+"CA","01010","ALBANY FD","2020","Other","Toyota","Priu","2013","JTDZN3EU8E3305807","229","86","11","45"
+"MN","62103","LITTLE CANADA FIRE DEPT","2019","Other","Toyota","RAV 4","2010","JTMBF4DV4AD03","229","11",NULL,NULL
+"GA","03301","Cobb Co Fire Dept","2020","Other","Kia","RONDO EX","2007","KNAFG525477034713","229","11","51",NULL
+"MA","09116","GROVELAND","2021","Other","Ford","Transit Connect Van","2012","NMOLS7BN6CT118238","229","11",NULL,NULL
+"NE","59003","Papillion Fire Rescue Dept","2021","Other","Mazda","6","2005","TYVHP80C155H11953","229","81","86",NULL
+"OH","49109","JEFFERSON TWP FIRE DEPARTMENT","2019","Other","Subaru","Unknown",NULL,"Unknown","229","86",NULL,NULL
+"NE","02006","Lincoln Fire Rescue","2020","Other","BMW","5301","2003","WBANA73574B058312","229","11",NULL,NULL
+"CA","30065","ORANGE COUNTY FIRE AUTHORITY","2018","Other","BMW","335","2007","WBAWB73567P034205","229","11","",""
+"OH","42115","CENTRAL OHIO JT FIRE DISTRICT","2021","Other","Other Make","coronado","1993",NULL,"229","11","12","74"
+"PA","48010","Bethlehem Fire Department","2019","Other","Hyundai","Santa Fe","2009",NULL,"229","11","86","81"
+"KS","SN101","Topeka Fire Department","2021","Other","Nissan","maxima","2000",NULL,"229","87",NULL,NULL
+"WV","52106","New Martinsville Fire Dept","2019","Other",NULL,NULL,NULL,NULL,"229","11",NULL,NULL
+"CA","30065","ORANGE COUNTY FIRE AUTHORITY","2020","Other","Subaru",NULL,NULL,NULL,"229","11","12","86"
+"MO","02601","Jefferson City Fire Department","2019","Other","Honda","Odysey","2011",NULL,"229","11","86",NULL
+"MA","25248","REVERE","2020","Other","Chevrolet","1500","1998",NULL,"229","11",NULL,NULL
+"VA","02101","Bland Co Vol Fire Dept","2019","Other",NULL,NULL,NULL,NULL,"229","11","12","46"
+"OH","48011","OREGON FIRE DEPARTMENT","2021","Other",NULL,NULL,NULL,NULL,"229","87",NULL,NULL
+"TN","79553","Memphis Fire Department","2021","Other","Pontiac","G6","2008",NULL,"229","11",NULL,NULL
+"CA","19110","LOS ANGELES COUNTY FD","2021","Other","Hyundai","accent","2009",NULL,"229","11",NULL,NULL
+"CA","10095","SELMA FD","2020","Other","Toyota","CORR","1992",NULL,"229","11",NULL,NULL
+"AZ","15032","San Luis Fire Department","2020","Other","Nissan","Maxiuam","2008",NULL,"229","81",NULL,NULL
+"CA","37085","IMPERIAL BEACH FD","2020","Other","Buick","Regal","1979",NULL,"229","11","80",NULL
+"FL","41012","FERNANDINA BCH MUNICIPAL FD","2021","Other",NULL,NULL,NULL,NULL,"229","86",NULL,NULL
+"SC","46116","ROCK HILL FIRE DEPT","2019","Other","Toyota","corola","2016",NULL,"229","00",NULL,NULL
+"FL","18092","FT MYERS FD","2021","Other","Mitsubishi","Marage",NULL,NULL,"229","86",NULL,NULL
+"OR","00024","Bend FD","2021","Other",NULL,NULL,NULL,NULL,"229","11",NULL,NULL
+"CA","30020","COSTA MESA FD","2021","Other","Chrysler","300","2009",NULL,"229","11",NULL,NULL
+"CO","04525","COLORADO RIVER FIRE RESCUE","2021","Other","Honda","Rav 4",NULL,NULL,"229","11",NULL,NULL
+"GA","03301","Cobb Co Fire Dept","2020","Other","Dodge","Grand Caravan",NULL,NULL,"229","11",NULL,NULL
+"GA","03604","MartinezColumbia Fire Rescue","2021","Other","Ford","Mustang",NULL,NULL,"229",NULL,NULL,NULL
+"MN","55205","ROCHESTER FIRE DEPT","2019","Other",NULL,NULL,NULL,NULL,"229","86","12","11"
+"MO","04810","Inter City Fire Prot Dist1","2021","Other",NULL,NULL,NULL,NULL,"229","11",NULL,NULL
+"MI","05205","Marquette FireRescue","2021","Other","Chevrolet","Eqinox","2015",NULL,"229","10","11",NULL
+"NJ","09006","JC FIRE DEPT","2020","Other","Nissan",NULL,NULL,NULL,"229","30",NULL,NULL
+"WA","31D08","Snohomish8 Lake Stevens","2019","Other","Toyota","Camry","1990",NULL,"229","11",NULL,NULL
+"TN","19532","Nashville Fire Department","2021","Other","Toyota","camry",NULL,NULL,"229","87",NULL,NULL
+"WA","27D03","Pierce3 University Place","2019","Other","BMW",NULL,NULL,NULL,"229","86",NULL,NULL
+"OR","00155","Hauser RFPD","2019","Other","Toyota","Tundra","2016",NULL,"229","11",NULL,NULL
+"FL","01012","MIAMI BEACH FIRE DEPT","2020","Other","Other Make","Tesla Model X","2019",NULL,"229","11","42","81"
+"OR","00018","Baker City Fire Dept","2020","Other","Buick",NULL,NULL,NULL,"229","45",NULL,NULL
+"KS","WY101","KANSAS CITY FIRE DEPARTMENT","2021","Other",NULL,NULL,NULL,NULL,"229","11",NULL,NULL
+"TX","TX402","HEATH","2020","Other","Kia",NULL,NULL,NULL,"229","00","75",NULL
+"LA","37010","OUACHITA FIRE PRO DIST 1","2021","Other",NULL,NULL,NULL,NULL,"229","87",NULL,NULL
+"MI","00809","Johnstown Township Fire Depart","2020","Other","Mercedes Benz",NULL,NULL,NULL,"229","81","11",NULL
+"VA","55000","Chesapeake Fire Dept","2020","Other","Nissan",NULL,"2017",NULL,"229","86",NULL,NULL
+"CA","38005","SAN FRANCISCO FD","2022","Tesla","Other Make","Tesla Model 3","2019","5YJ3E1A7KF397720",NULL,"86",NULL,NULL
+"NC","05605","Marion Fire Department","2021","Tesla","Other Make","3","2018","5YJ3E1EA0JF171792",NULL,"11",NULL,NULL
+"CA","19105","LOS ANGELES CITY FD","2023","Tesla","Other Make","Model S","2022","5YJ3E1EA0NF360982","NNN","11",NULL,NULL
+"CA","27080","SEASIDE FD","2020","Tesla","Other Make","Model 3","2019","5Yj3E1EA2KF332838",NULL,"11",NULL,NULL
+"NJ","11040","Washington Township Fire Dept","2023","Tesla","Other Make","Model 3","2019","5YJ3E1EA3KF410561",NULL,"11",NULL,NULL
+"CA","30555","CDFORANGE","2023","Tesla","Other Make","Model 3","2021","5YJ3E1EA4MF870430",NULL,"86",NULL,NULL
+"CA","38005","SAN FRANCISCO FD","2021","Tesla","Other Make","S","2017","5YJ3E1EA5HF003785",NULL,"11","86",NULL
+"CA","43070","SAN JOSE FD","2023","Tesla",NULL,NULL,"2023","5yj3e1ea6kf399152",NULL,"11",NULL,NULL
+"CA","37075","NORTH COUNTY FPD","2021","Tesla","Other Make","Tesla 3","2018","5YJ3E1EA9JF014326","NNN","11","86",NULL
+"GA","04405","Dekalb County Fire Rescue","2022","Tesla","Other Make","Tesla model 3","2022","5yj3e1eaxnf19002","NNN","11",NULL,NULL
+"OR","00572","Lane Fire Authority","2020","Tesla","Other Make","Tesla Model 3","2019","5YJ3E1EB0KF433417","NNN","11",NULL,NULL
+"CO","05933","EVERGREEN VFD","2022","Tesla","Other Make","Model 3","2021","5YJ3E1EB0MF965608",NULL,"11","34",NULL
+"FL","02072","JACKSONVILLE FIRE RESCUE","2021","Tesla","Other Make","Model 3","2021","5yJ3E1EB1LF791465","NNN","11",NULL,NULL
+"MI","05217","Marquette Township Station 1","2021","Tesla","Acura","3","2020","5YJ3E1EB3LF764087",NULL,"11",NULL,NULL
+"MN","27218","MINNEAPOLIS FIRE DEPT","2020","Tesla",NULL,"Tesla Model 3","2020","5YJ3E1EB4LF643648","NNN","86",NULL,NULL
+"TX","DZ704","Odessa FD","2023","Tesla","Other Make","Model 3",NULL,"5YJ3E1EB4MF047358",NULL,"33","34","11"
+"TN","94223","Franklin Fire Department","2023","Tesla","Other Make","Tesla Model 3",NULL,"5yj3e1eb7ji114384",NULL,"81","86",NULL
+"FL","18092","FT MYERS FD","2021","Tesla","Other Make","3","2021","5YJ3E1EB7MF855798",NULL,"11","86",NULL
+"NV","03050","CLARK COUNTY FIRE DEPARTMENT","2023","Tesla","Other Make",NULL,"2022","5YJ3E1EB7NF297792",NULL,"11",NULL,NULL
+"MA","27290","SUTTON","2020","Tesla","Other Make","TESLA MODEL 3","2018","5YJ3E1EB8JF081752",NULL,"11",NULL,NULL
+"CA","33051","MENIFEE FIRE DEPARTMENT","2019","Tesla","Trelan","Dual Motor","2019","5YJ3E1EB9KF205710","NNN","11",NULL,NULL
+"CA","36180","REDLANDS FD","2022","Tesla","Other Make","Tesla Model 3","2022","5yj3e1ec0nf103547","NNN","11",NULL,NULL
+"TX","KN604","Edinburg FD","2021","Tesla",NULL,"TESLA P3","2020","5YJ3E1EC2LF736242",NULL,"86",NULL,NULL
+"CA","07090","CONTRA COSTA COUNTY FD","2022","Tesla","Other Make","Tesl","2021","5YJ3E1EC3MF073975",NULL,"11",NULL,NULL
+"FL","42032","MARTIN COUNTY FIRE RESCUE","2022","Tesla","Other Make","Tesla","2022","5YJ3E1EC6NF125276","NNN","11","34","23"
+"CA","30065","ORANGE COUNTY FIRE AUTHORITY","2022","Tesla","Other Make","TESLA 3",NULL,"5YJ3EA1JF160350",NULL,"86",NULL,NULL
+"GA","03306","MARIETTA FIRE EMER  SVCS","2021","Tesla","Other Make","Tesla sedan","2018","5YJ3EA3JF008148",NULL,"11",NULL,NULL
+"NC","09213","Raleigh Fire Department","2019","Tesla","Toro","tesla M3","2018","5YJ3EBXJF14845",NULL,"11","55",NULL
+"CA","33075","RIVERSIDE FD","2021","Tesla","UD","3","2019","5yj3eib8jf056270",NULL,"11",NULL,NULL
+"TX","AR602","Bastrop County ESD2","2019","Tesla","Other Make","Tesla 3",NULL,"5YJ3EIEA2JF008092",NULL,"11","78",NULL
+"TX","KA926","Houston FD","2023","Tesla","Audi","TESLA MODEL 3","2018","5YJ3EIEA2JF040363","NNN","11",NULL,NULL
+"LA","10020","LAKE CHARLES FD","2013","Tesla","Ferrari","TESLA MODEL S","2013","5YJ5A1DN9DFPO7929","NNN","87","70",""
+"CA","33105","PALM DESERT CFD","2017","Tesla","Other Make","7008","2017","5yj8a120ff096880","NNN","11","",""
+"CA","33105","PALM DESERT CFD","2017","Tesla","Other Make","6008","2017","5yj8a1e27hf173517","NNN","11","",""
+"GA","00805","Cartersville Fire Station 1","2015","Tesla","Acura","Tesla   Model S","2015","5YJA1H27FFP74080","","11","12","86"
+"OR","00291","Portland Fire Bureau","2023","Tesla","Other Make","MODEL 3","2023","5YJE1EA4PF413637","NNN","11","86",NULL
+"CT","08150","NORWICH FIRE DEPARTMENT","2023","Tesla","Other Make","Tesla Model S","2013","5YJSA1CG0DFP21124",NULL,"11",NULL,NULL
+"SC","42208","CONVERSE AREA VFD","2022","Tesla","Other Make","S","2013","5YJSA1CG1DFP24274",NULL,"10",NULL,NULL
+"MI","05019","Sterling Heights","2023","Tesla","Other Make","Tesla Model S","2013","5YJSA1CN3DFP26283","UUU","11","86",NULL
+"NV","03002","Las Vegas Fire and Rescue","2016","Tesla","Other Make","Tesl","2013","5YJSA1CP8DFP12932","","11","",""
+"UT","49010","Orem Fire Department","2020","Tesla","Other Make","Tesla model S","2013","5YJSA1DN3DFP0825",NULL,"81","86",NULL
+"CA","19105","LOS ANGELES CITY FD","2016","Tesla","Other Make","TESLA MODEL S","2013","5YJSA1DP2DFP26730","","11","",""
+"MA","01036","BOURNE","2021","Tesla","Other Make","Tesla Model S","2012","5YJSA1DP3DFP12285","NNN","11","12",NULL
+"HI","52000","Honolulu Fire Department","2016","Tesla","UD","TESL","2013","5YJSA1DP7DFP07199","","45","",""
+"AR","16600","JONESBORO FIRE DEPARTMENT","2021","Tesla","Other Make","Model S","2013","5YJSA1DP7DFP07641",NULL,"11",NULL,NULL
+"FL","18132","SOUTH TRAIL FIRE RESCUE","2022","Tesla","Other Make","TESLA MODEL S","2015","5YJSA1E10FF110246",NULL,"11",NULL,NULL
+"FL","10242","DAVIE FIRE RESCUE","2019","Tesla","Other Make","TELSA Model S","2016","5YJSA1E11GF164916",NULL,"11",NULL,NULL
+"CA","01040","FREMONT FD","2018","Tesla","Other Make","Tesl","2017","5YJSA1E13HF231193","","86","",""
+"FL","17011","LAKE MARY FIRE DEPARTMENT     ","2018","Tesla","Other Make","Tesla S","2016","5YJSA1E16GF158965","NNN","87","73",""
+"FL","64038","North Collier FCR Dist","2022","Tesla","Other Make","S 100D","2017","5YJSA1E20HF204686","NNN","11","86",NULL
+"FL","44015","Headquarters","2022","Tesla","Other Make",NULL,NULL,"5YJSA1E22GF167543",NULL,"11",NULL,NULL
+"FL","15061","EAST MANATEE FIRE RESCUE","2022","Tesla","Other Make","Tesla S UK","2016","5YJSA1E22GF167543",NULL,"12","11","81"
+"MI","08255","Northville Township FD","2023","Tesla",NULL,"75D",NULL,"5YJSA1E22HF193352",NULL,"87","12",NULL
+"MA","23219","NORWELL","2022","Tesla","Toyota","Tesla Model S","2016","5YJSA1E23GF170354",NULL,"86","11",NULL
+"CA","19025","BEVERLY HILLS FD","2019","Tesla","Other Make","Tesla Sedan","2018","5YJSA1E23JF250518","881","33","11","34"
+"CA","33051","MENIFEE FIRE DEPARTMENT","2016","Tesla","Other Make","Tesla Model S","2015","5YJSA1E25FF106184","NNN","11","",""
+"IA","77008","City of Des Moines","2018","Tesla","Other Make","Tesla Electric","2018","5YJSA1E25JF254540","NNN","11","86",""
+"NJ","02570","SADDLE BROOK FIRE DEPT","2018","Tesla","Other Make","S98",NULL,"5YJSA1E28GF130612","","81","10",""
+"IL","KA191","ELGIN FD","2022","Tesla","GMC (General Motors)","Tesla Model S","2017","5YJSA1E28HF198796",NULL,"11",NULL,NULL
+"GA","06301","GLYNN COUNTY FIRE DEPARTMENT","2020","Tesla",NULL,"Tesla ModelS","2018","5YJSA1E28JF248229","NNN","87",NULL,NULL
+"MI","06335","ROYAL OAK FIRE DEPARTMENT","2019","Tesla","Other Make","Tesla Model S","2015","5YJSA1E29FF103837",NULL,"11","86",NULL
+"KS","WY101","KANSAS CITY FIRE DEPARTMENT","2021","Tesla","Other Make","Tesla S","2016","5YJSA1E44GF177623","NNN","11",NULL,NULL
+"KY","00619","PARKERS MILL","2023","Tesla","Other Make","TESLA MODEL 5","2015","5YJSA1E4XFF118798",NULL,"10","12",NULL
+"WA","32M10","Spokane Fire Dept","2023","Tesla","Other Make","Tesla",NULL,"5YJSA1E55NF473319",NULL,"11",NULL,NULL
+"TX","KA510","Channelview FD","2023","Tesla","Other Make","s","2022","5yjsa1e55nf490752",NULL,"11","82",NULL
+"CA","19105","LOS ANGELES CITY FD","2023","Tesla","Other Make","Tesla","2023","5YJSA1E66PF520840","NNN","11",NULL,NULL
+"CA","19105","LOS ANGELES CITY FD","2023","Tesla","Other Make","Tesla Model S","2023","5YJSA1E67PF498735","NNN","11",NULL,NULL
+"PA","46934","Lower Merion Fire Department","2021","Tesla","Other Make","Tesla","2020","5YJSA1E69MF432098",NULL,"10","78","55"
+"OH","31007","BLUE ASH FIRE DEPARTMENT","2023","Tesla","Other Make","Model S","2014","5YJSA1H16EFP45756",NULL,"11",NULL,NULL
+"FL","18022","CAPE CORAL FIRE RESCUE EMS","2023","Tesla",NULL,"S","2014","5YJSA1H28EFP66178","NNN","86",NULL,NULL
+"CA","19110","LOS ANGELES COUNTY FD","2015","Tesla","Other Make","tesla","2015","5yjsa1h29ff100898","","11","",""
+"GA","02502","Garden City Fire Department","2020","Tesla","Zetor","Tesla 2s","2015","5yjsa1v25ff099107","NNN","81",NULL,NULL
+"CA","01008","ALAMEDA COUNTY FD","2017","Tesla","Other Make","Tesl","2014","5YJSB7H15FF084271","NNN","11","",""
+"KS","WY101","KANSAS CITY FIRE DEPARTMENT","2023","Tesla","Other Make","Model x","2016","5YJXCAE22GF004889",NULL,"86","11",NULL
+"KS","WY101","KANSAS CITY FIRE DEPARTMENT","2023","Tesla","Other Make","Tesla","2016","5YJXCAE22GF004889","NNN","11",NULL,NULL
+"TX","KA926","Houston FD","2017","Tesla","Other Make","P85","2015","5YJXCAE23HF046148","","11","",""
+"TX","KA542","Northwest VFD","2017","Tesla","Other Make","x","2017","5yjxcae23hfo46148","","11","",""
+"FL","10192","FT LAUDERDALE FR","2023","Tesla","Other Make","Tesl","2020","5YJXCAE27LF236947",NULL,"11",NULL,NULL
+"CA","30065","ORANGE COUNTY FIRE AUTHORITY","2020","Tesla","Other Make","Tesla","2018","5YJXCAE44JF138439",NULL,"11","33","34"
+"CA","01075","OAKLAND FD","2018","Tesla","Classic Vehicle","Tesl","2016","5YJXCAE4XGF007962","","86","",""
+"NC","05605","Marion Fire Department","2021","Tesla","Other Make","X","2018","5YJXCB627JF120151",NULL,"11",NULL,NULL
+"NC","05605","Marion Fire Department","2021","Tesla","Other Make","X","2018","5YJXCBE21JF092623",NULL,"11",NULL,NULL
+"FL","64042","NAPLES FD                    ","2022","Tesla","Other Make","TESLA",NULL,"5YJXCBE41GF020993","NNN","55",NULL,NULL
+"FL","64038","North Collier FCR Dist","2022","Tesla","Other Make","Model X","2016","5YJXCBE41GF020993","NNN","11",NULL,NULL
+"FL","64042","NAPLES FD                    ","2022","Tesla","Other Make","TESLA",NULL,"5YJXCBE41GF020993","NNN","86",NULL,NULL
+"FL","01032","MIAMIDADE FIRE RESCUE","2019","Tesla","Other Make","TELSA X",NULL,"5YJXCBE41JF128750",NULL,"11","86",NULL
+"LA","28020","LAFAYETTE FD","2019","Tesla","Trelan","MODEL X","2018","5YJXCBE41JF142910",NULL,"11",NULL,NULL
+"CA","43010","GILROY FD","2022","Tesla","Other Make","Y","2021","5YJYGDEE2MF214912",NULL,"11",NULL,NULL
+"CA","33115","TEMECULA FD","2022","Tesla","Other Make","Tesla Dual Motor","2021","5YJYGDEE8MF302198","NNN","11",NULL,NULL
+"CA","19105","LOS ANGELES CITY FD","2021","Tesla","Other Make","TESLA","2020","5YJYGDEEXLF054969",NULL,"86","11",NULL
+"CA","19155","REDONDO BEACH FD","2023","Tesla","Other Make","Y",NULL,"5YJYGDEEZMF086936","NNN","11",NULL,NULL
+"FL","01042","CITY OF MIAMI FIRE RESCUE","2022","Tesla","Other Make","TESLA MODEL X","2021","5YJYGDEF3MF270060",NULL,"11",NULL,NULL
+"OH","18027","CLEVELAND FIRE DEPARTMENT","2023","Tesla","Other Make","MODE","2021","5YJYGDEF6MF121769",NULL,"11",NULL,NULL
+"SC","20207","Mitford VFD","2016","Tesla","Jaguar","","2003","7sajea51d23xd3795","","11","78",""
+"IL","WH252","WILLIAMSON COUNTY FPD","2022","Tesla","Other Make","Tesla Model X","2022","7SAX63NF331603","NNN","86",NULL,NULL
+"CA","24005","ATWATER FD","2023","Tesla","Other Make","X","2022","7saxcae56nf361647","NNN","11",NULL,NULL
+"WA","17M15","Seattle Fire Dept","2023","Tesla","Antique Vehicle","tesla","2021","7SAXCBE52NF3630",NULL,"11","12",NULL
+"IL","JA111","CARBONDALE FD","2023","Tesla","Other Make","Tesla Model 3",NULL,"7SAYGAEE9PF798019",NULL,"86",NULL,NULL
+"SC","39302","CLEMSON UNIVERSITY FIRE EMS","2023","Tesla","Other Make","Y","2023","7SAYGDEE2PA061257","NNN","11",NULL,NULL
+"CA","43070","SAN JOSE FD","2023","Tesla","Other Make","Tesla Moidel Y","2022","7SAYGDEE5NF345885",NULL,"11",NULL,NULL
+"NY","11021","LIVINGSTON FIRE DEPARTMENT","2023","Tesla","Other Make","TESLA X","2022","7SAYGDEE8NF481816",NULL,"81","11","84"
+"FL","01032","MIAMIDADE FIRE RESCUE","2023","Tesla","UD","TESLA  Y","2023","7SAYGDEE9PF708210",NULL,"86","11","51"
