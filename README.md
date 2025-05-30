@@ -17,10 +17,30 @@ data in the `csv` directory) and analytical results.
 
 The scripts are R Markdown files, with the code in R. A number of packages
 are used either to run the `Rmd` files or are used by the `Rmd` files to 
-perform the analysis:
+perform the analysis. These must be present for the scripts to run.
 
+|Package     |Version |
+|:-----------|:-------|
+|bookdown    |0.43    |
+|rmarkdown   |2.29    |
+|knitr       |1.50    |
+|tidyr       |1.3.1   |
+|dplyr       |1.1.4   |
+|magrittr    |2.0.3   |
+|ggplot2     |3.5.2   |
+|foreach     |1.5.2   |
+|maxLik      |1.5-2.1 |
+|textmineR   |3.0.5   |
+|rstan       |2.32.7  |
+|loo         |2.8.0   |
 
+In additon, the following packages are highly recommended if you intend to
+run the scripts from the raw data.
 
+|Package     |Version |
+|:-----------|:-------|
+|parallel    |4.5.0   |
+|doParallel  |1.0.17  |
 
 After installation of R and the essential packages (and dependencies), there 
 are two basic approaches that can be used duplicate the analysis, each with two
