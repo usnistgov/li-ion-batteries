@@ -24,7 +24,7 @@ if(exists("ipsdi.nfirs") & ("RPostgreSQL" %in% row.names(installed.packages())))
 library(magrittr)
 library(tidyr)
 library(dplyr)
-library(sf)
+#library(sf)
 
 if(! exists("csv_dir")){
   csv_dir <- "csv/"
