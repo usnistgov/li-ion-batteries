@@ -15,6 +15,11 @@ The `rdata` directory contains `RData` files, which are the native save file
 format for R. Those files contain a mix of the raw data (reformatted from the 
 data in the `csv` directory) and analytical results.
 
+One additional file is not included in this GitHub repository because it is
+too large. The file, `NFIRS.RData`, would be used in the runs from intermediate
+files described below, and would *considerably* shorten running times. It is 
+available on request from the author and would go in the `rdata` subdirectory.
+
 The scripts are R Markdown files, with the code in R. A number of packages
 are used either to run the `Rmd` files or are used by the `Rmd` files to 
 perform the analysis. These must be present for the scripts to run.
@@ -59,7 +64,8 @@ This is the simplest approach.
 
 * Download all the files from GitHub.
 * Make sure the `csv` and `rdata` directories exist
-* Make sure the files in the `csv` and `rdata` directories are present
+* Make sure the files in the `csv` and `rdata` directories are present, 
+including if desired, the `NFIRS.RData` file mentioned above
 * make sure there is no `_main.md` file in the base directory
 * Run the following code in `R`
 
@@ -98,7 +104,8 @@ deleted above as well as producing a `_main.html` file as output.
 
 * Download all the files from GitHub.
 * Make sure the `csv` and `rdata` directories exist
-* Make sure the files in the `csv` and `rdata` directories are present
+* Make sure the files in the `csv` and `rdata` directories are present, 
+including if desired, the `NFIRS.RData` file mentioned above
 * Run the following code in `R`
 
 ```
