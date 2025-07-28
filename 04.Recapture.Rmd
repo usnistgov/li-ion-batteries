@@ -25,15 +25,15 @@ if(! exists("intmdt_dir")){
   intmdt_dir <- "rdata/"
 }
 
-# Either load the completed data (currently in .RData, but henceforth in NFIRS.RData) 
-# or the relevant compiled data in NFIRS.Data.RData.
+# Either load the completed data from recapture.rdata
+# or the relevant compiled data in recapture.data.rdata.
 ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
 if("recapture.rdata" %in% tolower(ff)){
   fg <- "recapture.rdata" %>% match(tolower(ff)) %>% { ff[.] }
 } else if("recapture.data.rdata" %in% tolower(ff)){
   fg <- "recapture.data.rdata" %>% match(tolower(ff)) %>% { ff[.] }
 } else {
-  stop("The data files needed for the NFIRS analysis are not present!")
+  stop("The data files needed for the Recapture analysis are not present!")
 }
 load(paste0(intmdt_dir, fg))
 rm(ff, fg)

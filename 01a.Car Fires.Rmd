@@ -1,0 +1,362 @@
+---
+title: "Batteries"
+subtitle: "Car Fires"
+output: html_document
+date: "2025-07-25"
+---
+
+```{r setup-01a, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
+
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+library(rstan)
+library(RPostgreSQL)
+
+keep <- c(ls(), "figs")
+
+if(! exists("csv_dir")){
+  csv_dir <- "csv/"
+}
+if(! exists("intmdt_dir")){
+  intmdt_dir <- "rdata/"
+}
+
+# Either load the completed data (in CarFires.RData) 
+# or the relevant base data in CarFires.Data.RData.
+ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
+if("CarFires.rdata" %in% tolower(ff)){
+  fg <- "CarFires.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+} else if("CarFires.data.rdata" %in% tolower(ff)){
+  fg <- "CarFires.data.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+} else {
+  stop("The data files needed for the Car Fires analysis are not present!")
+}
+load(paste0(intmdt_dir, fg))
+rm(ff, fg)
+
+keep2 <- c("car.years", "tesla", "test.cases", "results", "totals", "stan.model", "figs")
+```
+
+```{r tesla-fires, eval=! exists("tesla.fires")}
+#The data used here are found at this site:
+# "https://www.tesla-fire.com/"
+# 
+# The data was downloaded and imported for use.
+tesla.fires <- paste0(csv_dir, "Tesla Fires.xlsx") %>% openxlsx2::wb_to_df(1)
+```
+
+
+## Plan B
+
+```{stan v2, output.var="stan.model", eval=! exists("stan.model")}
+data {
+  int<lower=0>       S1;         // Number of cars in sample 1
+  int<lower=0>       S2;         // Number of cars in sample 2
+  int<lower=0>       S12;        // Number of cars in both samples
+  real               alpha;
+  real               scale_p;
+}
+
+transformed data {
+  int      which;
+  real     theta;
+  real     min_N;
+  real     scale_N;
+
+  if(S1 <= S2){
+    which = 1;
+    theta = alpha ^ (1. / S2);
+  } else {
+    which = 2;
+    theta = alpha ^ (1. / S1);
+  }
+  if(S12 == 0){
+    scale_N = sqrt(S1 * S2 / ((1 - alpha ^ (1. / S1)) * (1 - alpha ^ (1. / S2))));
+  } else {
+    scale_N = S1 * S2 / S12;
+  }
+  min_N = max(S1, S2) / scale_N;
+}
+
+parameters {
+  vector<lower=0, upper=1>[2]   p;
+  real<lower=min_N>             N_hat;
+}
+
+transformed parameters {
+  real    N = N_hat * scale_N;
+}
+
+model {
+
+  target += lgamma(N + 1) - lgamma(S1 + 1) - lgamma(N - S1 + 1)
+            + S1 * log(p[1]) + (N - S1) * log(1 - p[1]);
+  target += lgamma(N + 1) - lgamma(S2 + 1) - lgamma(N - S2 + 1)
+            + S2 * log(p[2]) + (N - S2) * log(1 - p[2]);
+  if(S12 == 0){
+    theta ~ beta((1 - p[which]) * scale_p, p[which] * scale_p);
+  } else {
+    target += lgamma(S1 + 1) - lgamma(S12 + 1) - lgamma(S1 - S12 + 1)
+              + S12 * log(p[2]) + (S1 - S12) * log(1 - p[2]);
+  }
+}
+
+generated quantities {
+}
+```
+
+```{stan stan-slope-v, output.var="stan.mode1", eval=! exists("stan.mode1")}
+// This differs from the version above in that it computes a slope over time
+// instead of computing estimated values for each year separately.
+data {
+  int<lower=1>          T;       // Number of time periods
+  vector[T]             S1;      // Sample 1 Counts
+  vector[T]             S2;      // Sample 2 Counts
+  vector[T]             So;      // Sample Overlap Counts
+  int<lower=0, upper=1> slope1;  // 0: No; 1: Yes
+  int<lower=0, upper=1> slope2;  // 0: No; 1: Yes
+}
+
+transformed data {
+
+  matrix[T,3]    dats = append_col(append_col(S1, S2), So);
+  
+  real     min_N;
+  real     scale_N = 0;
+  int      k=0;
+  for(i in 1:T){
+    if(So[i] > 0){
+      scale_N += S1[i] * S2[i] / So[i];
+      k = k + 1;
+    }
+  }
+  scale_N = scale_N / k;
+  
+  min_N = max(append_row(S1, S2)) / scale_N;
+}
+
+parameters {
+  vector[1 + slope1]       p1_lgt;
+  vector[1 + slope2]       p2_lgt;
+  real                     r;
+  real<lower=min_N>        N_hat;
+}
+
+transformed parameters {
+  vector[T]    N;
+  vector[T]    p1;
+  vector[T]    p2;
+  for(i in 1:T){
+    N[i] = N_hat * scale_N * exp((i - 1) * r);
+    if(slope1 == 1){
+      p1[i] = inv_logit(p1_lgt[1] + (i - 1) * p1_lgt[2]);
+    } else {
+      p1[i] = inv_logit(p1_lgt[1]);
+    }
+    if(slope2 == 1){
+      p2[i] = inv_logit(p2_lgt[1] + (i - 1) * p2_lgt[2]);
+    } else {
+      p2[i] = inv_logit(p2_lgt[1]);
+    }
+  }
+}
+
+model {
+  matrix[T, 3]   p_hat = append_col(append_col(p1, p2), p1 .* p2);
+  for(i in 1:T){
+    for(j in 1:3){
+      target += lgamma(N[i] + 1) - lgamma(dats[i,j] + 1) - lgamma(N[i] - dats[i,j] + 1)
+              + dats[i,j] * log(p_hat[i,j]) + (N[i] - dats[i,j]) * log(1 - p_hat[i,j]);
+  }}
+}
+
+generated quantities {
+}
+```
+
+```{r stan-summary}
+n.est <- sapply(stan.tesla, function(x) extract(x, "N")[[1]] %>% 
+                             {c(mean(.), quantile(., c(0.025, 0.5, 0.975)))}) %>% 
+       t() %>% rbind(matrix(NA, ncol=4, nrow=2019 - 2006), .) %>% 
+       as.data.frame() %>% setNames(c("T.est", "T.lcl", "T.med", "T.ucl")) %>% 
+       cbind(n.est, .)
+
+n.est <- sapply(stan.batt, function(x) extract(x, "N")[[1]] %>% 
+                             {c(mean(.), quantile(., c(0.025, 0.5, 0.975)))}) %>% 
+       t() %>% rbind(matrix(NA, ncol=4, nrow=2019 - 2006), .) %>% 
+       as.data.frame() %>% setNames(c("B.est", "B.lcl", "B.med", "B.ucl")) %>% 
+       cbind(n.est, .)
+
+```
+# Results
+
+
+```{r vin-lookup, eval=! exists("test.cases")}
+car.fires$mob_vin_no <- car.fires$mob_vin_no %>% str_replace_all("I", "1")
+car.fires$mob_vin_no <- car.fires$mob_vin_no %>% str_replace_all("O", "0")
+
+reg.check.vin <- data.frame(vin=str_pad(toupper(car.fires$mob_vin_no), 17, "right", "*")) %>% 
+                      mutate(r0=str_detect(vin, "[ -]|^[0-9*]+$", negate=T),
+                             r1=str_detect(vin, "^[0-9A-HJ-NPR-TV-Z*]{12}"),
+                             r2=str_detect(vin, "[0-9*]{5}$"),
+                             r3=str_detect(vin, "^[0-9A-Z*]{8}([0-9X])"),
+                             r4=str_detect(vin, "^[0-9A-Z*]{9}([^0Z])"))
+# Check digit in VIN
+coded <- data.frame(text=c(0:9, LETTERS, "*"),
+                    value=c(0:9, 1:9, 1:9, 2:9, NA))
+coded$value[coded$text %in% c('I', 'O' , 'Q', 'U')] <- NA
+multiplies <- c(8:2, 10, 0, 9:2)
+
+tmp <- str_split_fixed(reg.check.vin$vin, "", 17)
+tmp <- coded$value[match(tmp, coded$text)] %>% matrix(ncol=17) %>% multiply_by_matrix(multiplies) %>%
+       magrittr::mod(11)
+
+reg.check.vin$r5 <- substring(reg.check.vin$vin, 9, 9) == c(0:9, 'X', '@')[ifelse(is.na(as.integer(tmp)), 11, as.integer(tmp)) + 1]
+
+ndx <- with(reg.check.vin, r0 & r1 & r2 & r3 & r4)
+test.cases <- data.frame(vin=str_pad(toupper(car.fires$mob_vin_no), 17, "right", "*")[ndx],
+                         year=car.fires$mob_year[ndx],
+                         CheckValid=reg.check.vin$r5[ndx]) %>% 
+                  mutate(wmi=substring(vin, 1, 3),
+                         wmi=ifelse(substring(wmi, 3, 3) == '9', paste0(wmi, substring(vin, 12, 14)), wmi),
+                         rest=substring(vin, 4,17)) %>% unique()
+
+dbExecute(con, "truncate \"tmpVinCases\"")
+dbWriteTable(con, "tmpVinCases", test.cases, row.names=F, append=T)
+
+out.cases <- dbGetQuery(con, "SELECT * FROM \"GetElements\"")
+
+test.cases <- out.cases %>% 
+       group_by(vin, ModelYear, InputYear, CheckValid, VehicleType, Element, Value) %>%
+       summarize(Make=first(Make)) %>%
+       group_by(vin, ModelYear, InputYear, CheckValid, VehicleType, Make, Element) %>% 
+       summarize(value=first(Value)) %>%
+       pivot_wider(id_cols=1:6, names_from=Element, values_from=value) %>% 
+       mutate(`NA`=NULL, 
+              Engine=`Engine Model`, 
+              Model=Model, 
+              Fuel1=`Fuel Type - Primary`,
+              Fuel2=`Fuel Type - Secondary`,
+              .keep="unused")
+
+test.cases$li.battery <- (! is.na(test.cases$Fuel1) & test.cases$Fuel1 == 'Electric') | 
+                         (! is.na(test.cases$Fuel2) & test.cases$Fuel2 == 'Electric')
+
+car.fires$Tesla <- str_detect(car.fires$mob_vin_no, '^(5YJ|7SA)')
+car.fires$li.battery <- car.fires$mob_vin_no %in% test.cases$vin[test.cases$li.battery]
+```
+
+
+
+
+
+```{r car-fire-est}
+tesla <- openxlsx2::wb_to_df("../Batteries/csv/Tesla Fire .xlsx", 1) %>% 
+         { setNames(., c("ID", "Year", "Date", "Country", "State", "Model", "Fatalities", "Description", 
+                         paste0("source", 1:(ncol(.) - 8)))) } %>% 
+         filter(! is.na(Year)) %>% 
+         select(ID, Year, Date, Country, State, Model, Fatalities, Description) %>%
+         mutate(Date=lubridate::ymd(Date))
+
+results <- list(tesla=tesla %>% filter(tolower(Country) == "usa") %>% group_by(Year) %>% summarize(n=n()),
+                 fire=car.fires %>% filter(Tesla) %>% group_by(year) %>% summarize(n=n()),
+                 batt=car.fires %>% filter(li.battery, year > 2004) %>% group_by(year) %>% summarize(n=n()),
+                both0=tesla %>% filter(tolower(Country) == 'usa') %>% 
+                      inner_join(car.fires %>% filter(Tesla),
+                                 by=join_by(Date == inc_date, State==state)) %>% 
+                      select(Year, Date, State, Model, Fatalities, 
+                             mob_model, mob_year, mob_vin_no, Description) %>% unique(),
+                both4=tesla %>% filter(tolower(Country) == 'usa') %>% 
+                      inner_join(car.fires %>% filter(Tesla) %>% 
+                                   mutate(ldate=inc_date - 4, hdate=inc_date + 4),
+                                 by=join_by(Date >= ldate, Date <= hdate, State==state)) %>% 
+                      select(Year, Date, inc_date, State, Model, Fatalities, 
+                             mob_model, mob_year, mob_vin_no, Description) %>% unique(),
+                both7=tesla %>% filter(tolower(Country) == 'usa') %>% 
+                      inner_join(car.fires %>% filter(Tesla) %>% mutate(ldate=inc_date - 7, 
+                                                                        hdate=inc_date + 7),
+                                 by=join_by(Date >= ldate, Date <= hdate, State==state)) %>% 
+                      select(Year, Date, inc_date, State, Model, Fatalities, 
+                             mob_model, mob_year, mob_vin_no, Description) %>% unique()
+)
+
+results$summary <- 
+  results$tesla %>% mutate(tesla=n, .keep="unused") %>% 
+                  full_join(results$fire %>% mutate(nfirs=n, .keep="unused"), by=join_by(Year == year)) %>% 
+                  full_join(results$batt %>% mutate(batt=n, .keep="unused"), by=join_by(Year == year)) %>% 
+                  full_join(results$both0 %>% group_by(Year) %>% summarize(both0=n())) %>% 
+                  full_join(results$both4 %>% group_by(Year) %>% summarize(both4=n())) %>% 
+                  full_join(results$both7 %>% group_by(Year) %>% summarize(both7=n())) %>% 
+              filter(Year > 2005, Year < 2024) %>% 
+              mutate(Year = as.integer(Year), 
+                     tesla0=tesla * nfirs / both0,
+                     tesla4=tesla * nfirs / both4,
+                     tesla7=tesla * nfirs / both7,
+                     batt0 =batt * nfirs / both0,
+                     batt4 =batt * nfirs / both4,
+                     batt7 =batt * nfirs / both7
+                     ) %>% arrange(Year)
+
+totals <- results$summary %>% {
+          ((colSums(.[,3:4], na.rm=T) * sum(.$tesla, na.rm=T)) %>% 
+                t() %>% t()) %*% (1 / colSums(.[,5:7], na.rm=T)) %>% t() } %>% 
+          as.data.frame() %>% cbind(window=c('0', '4', '7'), .)
+```
+
+
+
+
+```{r run_stan, eval=! exists("stan.tesla")}
+n.est <- results$summary %>% {rbind(., colSums(., na.rm=T)) } %>% 
+         select(Year, tesla, nfirs, batt, both4, tesla4, batt4)
+n.est$Year[19] <- NA
+stan.tesla <- list()
+for(i in 14:19){
+  st.data <- with(n.est, list(S1=tesla[i], S2=nfirs[i], 
+                              S12=ifelse(is.na(both4[i]), 0, both4[i]),
+                              alpha=0.1, scale_p=10))
+  stan.tesla[[i - 13]] <- sampling(stan.model, data=st.data, refresh=0)
+}
+
+
+stan.batt <- list()
+for(i in 14:19){
+  st.data <- with(n.est, list(S1=tesla[i], S2=batt[i], 
+                              S12=ifelse(is.na(both4[i]), 0, both4[i]),
+                              alpha=0.1, scale_p=10))
+  stan.batt[[i - 13]] <- sampling(stan.model, data=st.data, refresh=0)
+}
+```
+
+
+
+
+
+
+```{r temp}
+test.cases %>% mutate(MY=ifelse(is.na(ModelYear), InputYear, ModelYear), 
+                      Fuel=ifelse(is.na(Fuel1), Fuel2, Fuel1),
+                      Fuel=ifelse(is.na(Fuel), NA,
+                           ifelse(str_detect(Fuel, "E85|FFV"), "Ethanol",
+                           ifelse(str_detect(Fuel, "CNG|LNG|LPG|Nat|Cell|M85"), "Other",
+                           Fuel))),
+                      Fuel=ifelse(is.na(Fuel2), Fuel,
+                           ifelse(str_detect(Fuel2, "E85|FFV"), "Ethanol",
+                           ifelse(str_detect(Fuel2, "CNG|M85"), "Other",
+                           ifelse(Fuel2 == "Gasoline" & Fuel == "Electric", "Hybrid.b", 
+                           ifelse(Fuel2 == "Electric", "Hybrid.a", Fuel)))))
+                        )
+```
+
+
+
+```{r cleanup-01a}
+# Save the relevant file, as below. Then delete everything if you are working in bookdown.
+# That means that a `bookdown` flag needs to be set somehow. And then unset at the end.
+save(list=intersect(keep2, ls()), file=paste0(intmdt_dir, "CarFires.RData"))
+rm(list=setdiff(ls(), keep))
+```

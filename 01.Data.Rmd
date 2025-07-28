@@ -355,6 +355,32 @@ order by
   mob_vin_no
 ```
 
+```{sql vin-vehicles, connection=ipsdi.nfirs, output.var="car.fires", eval=FALSE}
+with inv as (
+Select DISTINCT * From codelookup Where fieldid ~* 'mob_invol'
+), typ as (
+Select DISTINCT * From codelookup Where fieldid ~* 'mob_type'
+), mk as (
+Select DISTINCT * From codelookup Where fieldid ~* 'mob_make'
+)
+
+Select 
+  state,
+  extract(year from inc_date) AS year,
+  inc_date,
+  mob_invol,
+  inv.code_descr AS inv_descr,
+  coalesce(typ.code_descr, mob_type) AS mob_type,
+  coalesce(mk.code_descr, mob_make) AS mob_make,
+  mob_model,
+  mob_year,
+  mob_vin_no
+From fireincident LEFT JOIN typ ON mob_type  = typ.code_value 
+                  LEFT JOIN mk  ON mob_make  = mk.code_value
+                  LEFT JOIN inv ON mob_invol = inv.code_value
+Where coalesce(mob_vin_no, '') != ''
+```
+
 ```{sql firelist, connection=ipsdi.nfirs, output.var="structures", eval=do.sql}
 WITH d AS (
 /*  Select the departments I am interested in.
@@ -466,6 +492,7 @@ selected <- paste0(csv_dir, "selected.csv") %>% read.csv()
 tesla <- paste0(csv_dir, "tesla.summ.csv") %>% read.csv()
 tesla_detail <- paste0(csv_dir, "Tesla.csv") %>% read.csv()
 car.actions <- paste0(csv_dir, "action.taken.csv") %>% read.csv()
+car.fires <- paste0(csv_dir, "car.fires.csv") %>% read.csv()
 structures <- paste0(csv_dir, "structures.csv") %>% read.csv()
 details <- paste0(csv_dir, "details.new.csv") %>% read.csv()
 ```
@@ -517,6 +544,7 @@ incident.txt <- with(incidents,
 ```{r cleanup-01}
 save(data.summ, selected, tesla, tesla_detail, car.actions, structures, details, 
      file=paste0(intmdt_dir, "nfirs.data.RData"))
+save(car.fires, file=paste0(intmdt_dir, "CarFires.data.RData"))
 save(incidents, incident.txt, file=paste0(intmdt_dir, "cpsc.data.RData"))
 save(incidents, details, file=paste0(intmdt_dir, "recapture.data.RData"))
 rm(list=setdiff(ls(), keep))
