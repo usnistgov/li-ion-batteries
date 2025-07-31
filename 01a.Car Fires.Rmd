@@ -32,10 +32,10 @@ if(! exists("intmdt_dir")){
 # Either load the completed data (in CarFires.RData) 
 # or the relevant base data in CarFires.Data.RData.
 ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
-if("CarFires.rdata" %in% tolower(ff)){
-  fg <- "CarFires.rdata" %>% match(tolower(ff)) %>% { ff[.] }
-} else if("CarFires.data.rdata" %in% tolower(ff)){
-  fg <- "CarFires.data.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+if("carfires.rdata" %in% tolower(ff)){
+  fg <- "carfires.rdata" %>% match(tolower(ff)) %>% { ff[.] }
+} else if("carfires.data.rdata" %in% tolower(ff)){
+  fg <- "carfires.data.rdata" %>% match(tolower(ff)) %>% { ff[.] }
 } else {
   stop("The data files needed for the Car Fires analysis are not present!")
 }
@@ -68,14 +68,14 @@ Action taken does not give anything useful. Basically, the only thing it says is
 ```
 
 
-```{r tesla-fires, eval=! exists("tesla.fires")}
+```{r tesla-fires, eval=! exists("tesla")}
 #The data used here are found at this site:
 # "https://www.tesla-fire.com/"
 # 
 # The data was downloaded and imported for use.
 
 # tesla <- openxlsx2::wb_to_df("../Batteries/csv/Tesla Fire .xlsx", 1) %>% 
-tesla <- paste0(csv_dir, "Tesla Fires.xlsx") %>% openxlsx2::wb_to_df(1) %>% 
+tesla <- paste0(csv_dir, "Tesla Fire .xlsx") %>% openxlsx2::wb_to_df(1) %>% 
          { setNames(., c("ID", "Year", "Date", "Country", "State", "Model", "Fatalities", "Description", 
                          paste0("source", 1:(ncol(.) - 8)))) } %>% 
          filter(! is.na(Year)) %>% 
@@ -288,7 +288,7 @@ generated quantities {
 ```
 
 
-```{r car-fire-est}
+```{r car-fire-est, eval=! exists("results")}
 # This section just does the basic Capture-Recapture calculation
 # (after building the data tables, of course).
 results <- list(Fires=tesla %>% mutate(year=Year) %>% filter(tolower(Country) == "usa") %>% 
@@ -298,18 +298,18 @@ results <- list(Fires=tesla %>% mutate(year=Year) %>% filter(tolower(Country) ==
         full_join(car.fires %>% filter(Plugin, year > 2004) %>% group_by(year) %>% summarize(Plugin=n())) %>% 
         full_join(car.fires %>% filter(Hybrid, year > 2004) %>% group_by(year) %>% summarize(Hybrid=n())) %>% 
         arrange(year),
-                both0=tesla %>% filter(tolower(Country) == 'usa') %>% 
+                Both0=tesla %>% filter(tolower(Country) == 'usa') %>% 
                       inner_join(car.fires %>% filter(Tesla),
                                  by=join_by(Date == inc_date, State==state)) %>% 
                       select(Year, Date, State, Model, Fatalities, 
                              mob_model, mob_year, mob_vin_no, Description) %>% unique(),
-                both4=tesla %>% filter(tolower(Country) == 'usa') %>% 
+                Both4=tesla %>% filter(tolower(Country) == 'usa') %>% 
                       inner_join(car.fires %>% filter(Tesla) %>% 
                                    mutate(ldate=inc_date - 4, hdate=inc_date + 4),
                                  by=join_by(Date >= ldate, Date <= hdate, State==state)) %>% 
                       select(Year, Date, inc_date, State, Model, Fatalities, 
                              mob_model, mob_year, mob_vin_no, Description) %>% unique(),
-                both7=tesla %>% filter(tolower(Country) == 'usa') %>% 
+                Both7=tesla %>% filter(tolower(Country) == 'usa') %>% 
                       inner_join(car.fires %>% filter(Tesla) %>% 
                                    mutate(ldate=inc_date - 7, hdate=inc_date + 7),
                                  by=join_by(Date >= ldate, Date <= hdate, State==state)) %>% 
