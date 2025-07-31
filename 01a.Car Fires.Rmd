@@ -405,7 +405,7 @@ n.est <- stan.slope %>% lapply(function(y) y %>% extract("N") %>% magrittr::extr
 ```
 
 ```{r fires-fig}
-figs <- list()
+if(! exists("figs")) figs <- list()
 figs$ev <- n.est %>% filter(! is.na(est) & ! is.na(Year)) %>% 
                 ggplot() + aes(x=Year, y=est, ymin=lcl, ymax=ucl) + geom_point() + geom_line() +
                    geom_ribbon(alpha=0.3) + facet_grid(name ~ .) + 
@@ -465,16 +465,6 @@ I don't understand the reason for the difference, but it probably needs to be
 discussed. One possible explanation is that the fire is much more likely to 
 destroy things like VIN numbers for the for EV fires, or the aggressive EV fire
 simply makes collecting that information too hazardous.
-
-```{r temp}
-tesla %>% mutate(year=Year) %>% filter(tolower(Country) == "usa") %>% 
-          group_by(year) %>% summarize(Tesla=n()) %>% 
-  left_join(car.fires %>% filter(Tesla) %>% group_by(year) %>% summarize(t.fires=n())) %>% 
-  left_join(car.fires %>% filter(BEV, year > 2004) %>% group_by(year) %>% summarize(BEV=n())) %>% 
-  left_join(car.fires %>% filter(Plugin, year > 2004) %>% group_by(year) %>% summarize(Plugin=n())) %>% 
-  left_join(car.fires %>% filter(Hybrid, year > 2004) %>% group_by(year) %>% summarize(Hybrid=n()))
-
-```
 
 
 
