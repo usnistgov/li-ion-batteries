@@ -40,7 +40,7 @@ load(paste0(intmdt_dir, fg))
 rm(ff, fg)
 
 # keep <- c(ls(), "figs")
-keep2 <- c("data.summ", "tesla", "tesla_detail", "car.actions", "selected", "structures", "details",
+keep2 <- c("data.summ", "selected", "structures", "details",
            "stan.summ", "stan.summ.out", "struc.13", "cur.batt", "stan.model", "stan.out2", "stan.out3",
            "switchdate", "stan.model1", "st_out1", "stan.model2", "st_out2", "tod.results",
            "seasonality", "sev.results", "room.res", "loo_loo", "figs")
@@ -155,43 +155,6 @@ Li ion battery fires. The very wide range of number of battery fires per
 reported fire is not realistically representative of the real world, and can 
 only mean that departments vary wildly in the extent to which they identify
 battery fires. Worse, the largest departments are typically the worst at it.
-
-## Tesla, by VIN
-
-Specifically looking at car battery fires presents a couple of serious problems.
-First, they are very poorly recorded in NFIRS (as seems to be typical of Li ion
-battery fires generally). Second, Regular (Pb-acid) battery fires are numerous
-in the data. It turns out that the easiest way to identify Li ion battery fires
-in automobiles is by identifying the cars by VIN number. At this point, Tesla is
-the only maker (and vehicles) that I can specifically identify in the data, so 
-this pulls that data.
-
-```{r tesla-est}
-figs$figure.01 <- 
-      tesla %>% pivot_longer(2:3) %>% ggplot() + aes(x=year, y=value, color=name, group=name) + 
-                geom_point() + geom_line() + scale_x_continuous(minor_breaks=2000:2025) + theme_bw()
-# This figure is different from what I made before. 
-# This will need to be reworked anyway once I get VIN info to work with.
-print(figs$figure.01)
-```
-
-Only about half of all vehicle fires in NFIRS have VIN numbers associated, so 
-expect the number of Li ion battery fires to be at least double these numbers.
-
-# Cars - Action Taken
-
-This looks at action taken for Li ion vehicle fires to see if there is anything 
-useful there.
-
-```{r tesla-action, eval=FALSE}
-action.codes <- read.csv(paste0(csv_dir, "act_tak_codes.csv"))[,-1]
-car.actions[,11:13] %>% as.matrix() %>% as.vector() %>% {.[! is.na(.) & . != '' & . != 'NULL']} %>%
-           data.frame(code=.) %>% left_join(action.codes, by=join_by(code==code_value)) %>%
-           with(table(code_descr)) %>% sort(decreasing=T)
-```
-
-Action taken does not give anything useful. Basically, the only thing it says is
-"Put out fire" as the action taken. Not useful.
 
 ## List structure battery fires 
 

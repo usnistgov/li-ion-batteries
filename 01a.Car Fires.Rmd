@@ -5,6 +5,10 @@ output: html_document
 date: "2025-07-25"
 ---
 
+# Cars Fires
+
+## Action Taken
+
 ```{r setup-01a, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
 
@@ -38,9 +42,31 @@ if("CarFires.rdata" %in% tolower(ff)){
 load(paste0(intmdt_dir, fg))
 rm(ff, fg)
 
-keep2 <- c("car.fires", "tesla", "test.cases", "results", "totals", "n.est", 
+keep2 <- c("car.fires", "tesla", "test.cases", "results", "totals", "n.est", "car.actions",
            "nfpa", "stan.model", "stan.mode1", "stan.tesla", "stan.slope", "figs")
 ```
+
+This looks at action taken for Li ion vehicle fires to see if there is anything 
+useful there.
+
+```{r tesla-action, eval=FALSE}
+action.codes <- read.csv(paste0(csv_dir, "act_tak_codes.csv"))[,-1]
+car.actions[,11:13] %>% as.matrix() %>% as.vector() %>% {.[! is.na(.) & . != '' & . != 'NULL']} %>%
+           data.frame(code=.) %>% left_join(action.codes, by=join_by(code==code_value)) %>%
+           with(table(code_descr)) %>% sort(decreasing=T)
+```
+
+Action taken does not give anything useful. Basically, the only thing it says is
+"Put out fire" as the action taken. Not useful.
+
+## Fire Estimates
+
+```{r start-data}
+################################################################################
+########### This Section Prepares Data and Models                    ###########
+################################################################################
+```
+
 
 ```{r tesla-fires, eval=! exists("tesla.fires")}
 #The data used here are found at this site:
@@ -255,7 +281,12 @@ generated quantities {
 }
 ```
 
-# Results
+```{r start-results}
+################################################################################
+########### Results Start Here                                       ###########
+################################################################################
+```
+
 
 ```{r car-fire-est}
 # This section just does the basic Capture-Recapture calculation
