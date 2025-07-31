@@ -237,7 +237,9 @@ order by
 
 ```
 
-```{sql tesla-vin, connection=ipsdi.nfirs, output.var="tesla", eval=do.sql}
+```{sql tesla-vin, connection=ipsdi.nfirs, output.var="tesla", eval=FALSE}
+-- This is an older version of an analysis that is now performed much better.
+-- It is now obsolete and therefore not run.
 SELECT 
   extract(year from inc_date) as year,
   sum(
@@ -266,7 +268,8 @@ order by
   extract(year from inc_date)
 ```
 
-```{sql tesla-vin1, connection=ipsdi.nfirs, output.var="tesla_detail", eval=do.sql}
+```{sql tesla-vin1, connection=ipsdi.nfirs, output.var="tesla_detail", eval=FALSE}
+-- Just like the table above, this is now obsolete.
 SELECT 
   state,
   inc_date,
@@ -356,9 +359,10 @@ order by
 ```
 
 ```{sql vin-vehicles, connection=ipsdi.nfirs, output.var="car.fires", eval=FALSE}
-with inv as (
-Select DISTINCT * From codelookup Where fieldid ~* 'mob_invol'
-), typ as (
+with --inv as (
+--Select DISTINCT * From codelookup Where fieldid ~* 'mob_invol'
+--), 
+typ as (
 Select DISTINCT * From codelookup Where fieldid ~* 'mob_type'
 ), mk as (
 Select DISTINCT * From codelookup Where fieldid ~* 'mob_make'
@@ -368,8 +372,14 @@ Select
   state,
   extract(year from inc_date) AS year,
   inc_date,
-  mob_invol,
-  inv.code_descr AS inv_descr,
+  CASE 
+    WHEN mob_invol in ('2', '3') THEN True
+    ELSE False
+  END AS ignited,
+  CASE 
+    WHEN mob_invol in ('1', '3') THEN True
+    ELSE False
+  END AS burned,
   coalesce(typ.code_descr, mob_type) AS mob_type,
   coalesce(mk.code_descr, mob_make) AS mob_make,
   mob_model,
@@ -377,8 +387,26 @@ Select
   mob_vin_no
 From fireincident LEFT JOIN typ ON mob_type  = typ.code_value 
                   LEFT JOIN mk  ON mob_make  = mk.code_value
-                  LEFT JOIN inv ON mob_invol = inv.code_value
+--                  LEFT JOIN inv ON mob_invol = inv.code_value
 Where coalesce(mob_vin_no, '') != ''
+```
+
+```{sql car-summ, connection=ipsdi.nfirs, output.var="car.summ", eval=do.sql}
+Select 
+  extract(year from inc_date) AS year,
+  count(*) as cars,
+  sum(
+    CASE
+	  WHEN coalesce(mob_vin_no, '') != '' THEN 1
+	  ELSE 0
+	END
+  ) as vins
+From fireincident 
+WHERE mob_invol in ('1', '2', '3')
+GROUP BY
+  extract(year from inc_date)
+ORDER BY
+  extract(year from inc_date)
 ```
 
 ```{sql firelist, connection=ipsdi.nfirs, output.var="structures", eval=do.sql}
@@ -542,9 +570,8 @@ incident.txt <- with(incidents,
 ```
 
 ```{r cleanup-01}
-save(data.summ, selected, tesla, tesla_detail, car.actions, structures, details, 
-     file=paste0(intmdt_dir, "nfirs.data.RData"))
-save(car.fires, file=paste0(intmdt_dir, "CarFires.data.RData"))
+save(data.summ, selected, structures, details, file=paste0(intmdt_dir, "nfirs.data.RData"))
+save(car.fires, car.summ, car.actions, file=paste0(intmdt_dir, "CarFires.data.RData"))
 save(incidents, incident.txt, file=paste0(intmdt_dir, "cpsc.data.RData"))
 save(incidents, details, file=paste0(intmdt_dir, "recapture.data.RData"))
 rm(list=setdiff(ls(), keep))
