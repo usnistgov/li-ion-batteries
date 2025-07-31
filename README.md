@@ -15,10 +15,13 @@ The `rdata` directory contains `RData` files, which are the native save file
 format for R. Those files contain a mix of the raw data (reformatted from the 
 data in the `csv` directory) and analytical results.
 
-One additional file is not included in this GitHub repository because it is
-too large. The file, `NFIRS.RData`, would be used in the runs from intermediate
+Four additional files are not included in this GitHub repository because they 
+are too large. The file, `NFIRS.RData`, would be used in the runs from intermediate
 files described below, and would *considerably* shorten running times. It is 
 available on request from the author and would go in the `rdata` subdirectory.
+The files `CarFires.RData`, `CarFires.data.RData`, and `car.fires.csv`, are
+*required* for the Car Fires analysis. but they are also too large for GitHub.
+They are also available on request from the author.
 
 The scripts are R Markdown files, with the code in R. A number of packages
 are used either to run the `Rmd` files or are used by the `Rmd` files to 
@@ -31,6 +34,7 @@ perform the analysis. These must be present for the scripts to run.
 |knitr       |1.50    |
 |tidyr       |1.3.1   |
 |dplyr       |1.1.4   |
+|stringr     |1.5.1   |
 |magrittr    |2.0.3   |
 |ggplot2     |3.5.2   |
 |foreach     |1.5.2   |
@@ -39,7 +43,7 @@ perform the analysis. These must be present for the scripts to run.
 |rstan       |2.32.7  |
 |loo         |2.8.0   |
 
-In additon, the following packages are highly recommended if you intend to
+In addition, the following packages are highly recommended if you intend to
 run the scripts from the raw data.
 
 |Package     |Version |
@@ -85,7 +89,7 @@ several hours of running time.
 
 * Download all the files from GitHub.
 * Make sure the `csv` and `rdata` directories exist
-* Make sure the files in the `csv`directory is present
+* Make sure the files in the `csv`directory are present
 * Delete all files from the `rdata` directory. Note that the directory itself 
 must still be present for the scripts to run.
 * make sure there is no `_main.md` file in the base directory
@@ -137,6 +141,7 @@ File to delete is listed in the following table. Note that the relevant
 | Script | Delete | Keep |
 |--------|--------|------|
 | 01.Data.Rmd | - | - |
+| 01a.Car Fires.Rmd | CarFires.RData | CarFires.data.RData |
 | 02.NFIRS.Rmd | NFIRS.RData | nfirs.data.RData |
 | 03.CPSC.Rmd | cpsc.RData | cpsc.data.RData |
 | 04.Recapture.Rmd | recapture.RData | recapture.data.RData |
