@@ -9,14 +9,17 @@ date: "2024-12-13"
 
 ```{r setup-04, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
-
+#
+# For now, keep the old methods in, but soon, delete them and leave
+# just the ai-screened set.
+#
 library(magrittr)
 library(tidyr)
 library(dplyr)
 library(ggplot2)
 library(rstan)
 
-keep <- ls()
+keep <- c(ls(), "figs")
 
 if(! exists("csv_dir")){
   csv_dir <- "csv/"
@@ -40,14 +43,15 @@ rm(ff, fg)
 
 keep2 <- c("incidents", "details", "cpsc.wk", "fire.reports", "overlap", "yearly",
            "cpsc.wk1", "overlap1", "stan.con.model", "stan.con.mdl1", "stan.con.fit",
-           "stan.con.fit1", "yearly.stan", "incident.lda")
+           "stan.con.fit1", "yearly.stan", "incident.lda", "cpsc.ai", "overlap.ai")
 
-ff <- c("incident.lda", "fire.reports") %in% ls()
+ff <- c("incident.lda", "fire.reports", "cpsc.ai") %in% ls()
 if(! all(ff)){
   e <- new.env()
   load(paste0(intmdt_dir, "cpsc.RData"), e)
   incident.lda <- e$incident.lda
   fire.reports <- e$fire.reports
+  cpsc.ai      <- e$cpsc.ai
   rm(e)
 }
 ```
@@ -98,35 +102,6 @@ overlap <- cbind(cpsc.wk %>% {.[(1:nrow(cpsc.wk))[! is.na(tmp)],
                                 c("City", "st_abb", "ZIP", "Report.Date", 
                                   "Location", "Severity")]},
                  details[tmp[! is.na(tmp)],c(12:14,5,7)])
-
-
-yearly <- data.frame(Year=c(2011:2023, 0, -(1:4)), 
-                     cpsc=c(cpsc.wk %>% mutate(year=lubridate::year(Report.Date)) %>% 
-                              filter(year < 2024) %>% with(table(year)), rep(NA, 5)),
-                     nfirs=c(details %>% with(table(year)), rep(NA, 5)),
-                     overlap=c(overlap %>% mutate(year=lubridate::year(Report.Date)) %>%
-                                 filter(year < 2024) %>% with(table(year)), rep(NA, 5)))
-
-# `yearly` is structured so that the first 13 rows are the years from 2011-2023
-# Year 0, then is the total of all years
-# Year -1 to -4 are different versions of total number of injuries.
-
-yearly$cpsc[14]    <- sum(yearly$cpsc[1:13])
-yearly$nfirs[14]   <- sum(yearly$nfirs[1:13])
-yearly$overlap[14] <- sum(yearly$overlap[1:13])
-yearly$cpsc[15:18] <- cpsc.wk %>% filter(Severity %in% c("Injury", "Death")) %>% nrow()
-yearly$nfirs[15:18]<- details %>% filter(casualties == "Yes") %>% nrow()
-yearly$overlap[15] <- overlap %>% filter(Severity %in% c("Injury", "Death")) %>% nrow()
-yearly$overlap[16] <- overlap %>% filter(casualties == "Yes") %>% nrow()
-yearly$overlap[17] <- overlap %>% filter(Severity %in% c("Injury", "Death"), 
-                                         casualties == "Yes") %>% nrow()
-yearly$overlap[18] <- overlap %>% filter(Severity %in% c("Injury", "Death") | 
-                                           casualties == "Yes") %>% nrow()
-
-yearly$N  <- with(yearly, ((cpsc + 1) * (nfirs + 1) / (overlap + 1)) - 1)
-yearly$se <- with(yearly, sqrt((N - cpsc) * (N - nfirs) / overlap))
-yearly$lcl <- yearly$N + qnorm(0.025) * yearly$se
-yearly$ucl <- yearly$N + qnorm(0.975) * yearly$se
 ```
 
 
@@ -190,6 +165,99 @@ figs$figure.20 <- tmp %>% filter(year < 2100, N < Inf) %>% ggplot() +
   geom_line(aes(x=Year, y=N, color="base", group="base"), data=yearly[1:13,]) +
   expand_limits(y=0) + scale_x_continuous(minor_breaks=2011:2023)
 print(figs$figure.20)
+```
+
+
+```{r connect-ai, eval=! exists("overlap.ai")}
+
+t1 <- left_join(cpsc.ai %>% mutate(c.id=1:nrow(cpsc.ai), Year=lubridate::year(Report.Date), 
+                                   City=tolower(City)) %>% filter(Lithium & Fire), 
+                details %>% mutate(n.id=1:nrow(details), city=tolower(city), state_id=toupper(state_id), 
+                                   year=lubridate::year(inc_date)), 
+                by=join_by(City == city, st_abb == state_id, Year == year)) %>% 
+      select(c.id, n.id, Report.Date, inc_date, City, st_abb, ZIP, zip5, fd_name, 
+             Location, property, Severity, casualties, tod, mob_invol, room, heat, 
+             ifi, fire_sprd, Description) %>% 
+      filter(! is.na(n.id))
+
+t2 <- left_join(cpsc.ai %>% mutate(c.id=1:nrow(cpsc.ai), Year=lubridate::year(Report.Date),
+                                   City=tolower(City)) %>% filter(Lithium & Fire), 
+                details %>% mutate(n.id=1:nrow(details), hdate=inc_date + 90, ldate=inc_date - 7,
+                                   city=tolower(city), state_id=toupper(state_id)), 
+                by=join_by(City == city, st_abb == state_id, Report.Date >= ldate, Report.Date <= hdate)) %>% 
+      select(c.id, n.id, Report.Date, inc_date, City, st_abb, ZIP, zip5, fd_name, 
+             Location, property, Severity, casualties, tod, mob_invol, room, heat, 
+             ifi, fire_sprd, Description) %>% 
+      filter(! is.na(n.id))
+
+# The following 'valid' values are determined by going through all the potential
+# matches by hand to see if they are valid matches. 
+# 
+t1.valid <- c(F, F, F, F, F, F, T,
+              F, F, F, F, F, F, F,
+              F, F, F, F, F, F, T,
+              F, F, T, T, F, F, F,
+              F, F, F, F, F, F, F,
+              T, F, F, F, F, F, F,
+              F, F, F, F, F, F, F)
+
+t2.valid <- c(T, F, F, F, 
+              F, T, F, T, 
+              T, F, F, T, 
+              F, F, F, F)
+
+overlap.ai <- t2 %>% filter(t2.valid) %>% 
+                     select(c.id, n.id, City, st_abb, ZIP, Report.Date, 
+                            inc_date, Location, Severity)
+
+overlap <- cbind(cpsc.ai %>% {.[(1:nrow(cpsc.ai))[! is.na(tmp)],
+                                c("City", "st_abb", "ZIP", "Report.Date", 
+                                  "Location", "Severity")]},
+                 details[tmp[! is.na(tmp)],c(12:14,5,7)])
+```
+
+The AI-screened CPSC dataset was matched to the NFIRS dataset based on city,
+state and date. If city and state matched and the dates were within specified
+bounds, the records were considered candidate matches. The bounds used were
+that the CPSC complaint was made not more than 90 days after the NFIRS report
+and not more than seven days before. That produced 
+`r cpsc.ai %>% filter(Lithium, Fire) %>% nrow()` records which were then
+reviewed by hand to determine whether they were the same incident. A total of
+`r overlap.ai %>% nrow()` overlapping records were identified.
+
+```{r yearly}
+yearly <- data.frame(Year=c(2011:2023, 0, -(1:5)), 
+                     cpsc=c(cpsc.ai %>% mutate(year=lubridate::year(Report.Date)) %>% 
+                              filter(year > 2010, year < 2024) %>% with(table(year)), rep(NA, 6)),
+                     nfirs=c(details %>% with(table(year)), rep(NA, 6)),
+                     overlap=c(overlap %>% mutate(year=lubridate::year(Report.Date)) %>%
+                                 filter(year < 2024) %>% with(table(year)), rep(NA, 6)))
+
+# `yearly` is structured so that the first 13 rows are the years from 2011-2023
+# Year 0, then is the total of all years
+# Year -1 to -4 are different versions of total number of injuries.
+# Year -5 is the AI estimate.
+
+yearly$cpsc[14]    <- sum(yearly$cpsc[1:13])
+yearly$nfirs[14]   <- sum(yearly$nfirs[1:13])
+yearly$overlap[14] <- sum(yearly$overlap[1:13])
+yearly$cpsc[15:18] <- cpsc.wk %>% filter(Severity %in% c("Injury", "Death")) %>% nrow()
+yearly$nfirs[15:18]<- details %>% filter(casualties == "Yes") %>% nrow()
+yearly$overlap[15] <- overlap %>% filter(Severity %in% c("Injury", "Death")) %>% nrow()
+yearly$overlap[16] <- overlap %>% filter(casualties == "Yes") %>% nrow()
+yearly$overlap[17] <- overlap %>% filter(Severity %in% c("Injury", "Death"), 
+                                         casualties == "Yes") %>% nrow()
+yearly$overlap[18] <- overlap %>% filter(Severity %in% c("Injury", "Death") | 
+                                           casualties == "Yes") %>% nrow()
+
+yearly$cpsc[19] <- cpsc.ai %>% filter(Lithium, Fire) %>% nrow()
+yearly$nfirs[19] <- sum(yearly$nfirs[1:13])
+yearly$overlap[19] <- overlap.ai %>% nrow()
+
+yearly$N  <- with(yearly, ((cpsc + 1) * (nfirs + 1) / (overlap + 1)) - 1)
+yearly$se <- with(yearly, sqrt((N - cpsc) * (N - nfirs) / overlap))
+yearly$lcl <- yearly$N + qnorm(0.025) * yearly$se
+yearly$ucl <- yearly$N + qnorm(0.975) * yearly$se
 ```
 
 The idea here is that if you have two (or more) independent samples of a 
@@ -335,7 +403,7 @@ stan.con.fit <- list()
 st.data <- list(N=2, X=NA)
 for(i in 1:nrow(yearly)){
   st.data$X <- with(yearly, matrix(c(cpsc[i], overlap[i], 0, nfirs[i]), nrow=2))
-  stan.con.fit[[i]] <- sampling(stan.con.model, data=st.data)
+  stan.con.fit[[i]] <- sampling(stan.con.model, data=st.data, refresh=0, iter=10000, warmup=1000)
 }
 ```
 
@@ -427,6 +495,14 @@ fires of approximately `r yearly.stan[14,5] %>% round(-3) %>% formatC(format="d"
 (confidence interval: 
 `r yearly.stan[14,7] %>% round(-3) %>% formatC(format="d")` - 
 `r yearly.stan[14,8] %>% round(-3) %>% formatC(format="d")`).
+
+Using the AI-screened data set, there were `r yearly.stan[19,2]` relevant cases 
+in the CPSC data, `r yearly.stan[19, 3]` relevant cases from the NFIRS data, 
+and an overlap of `r yearly.stan[19,4]` cases. This implies a total population of battery
+fires of approximately `r yearly.stan[19,5] %>% round(-3) %>% formatC(format="d")` 
+(confidence interval: 
+`r yearly.stan[19,7] %>% round(-3) %>% formatC(format="d")` - 
+`r yearly.stan[19,8] %>% round(-3) %>% formatC(format="d")`).
 
 The chart below shows the estimated number of battery fires by year between 
 2011 and 2023.
