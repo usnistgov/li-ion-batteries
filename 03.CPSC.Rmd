@@ -12,12 +12,15 @@ knitr::opts_chunk$set(echo = FALSE, warning=FALSE)
 library(magrittr)
 library(tidyr)
 library(dplyr)
+library(stringr)
 library(ggplot2)
 library(foreach)
 library(textmineR)
 library(maxLik)
+library(reticulate)
+library(ggtern)
 
-keep <- c(ls(), "figs", "fire.reports")
+keep <- c(ls(), "figs", "fire.reports", "cpsc.ai")
 
 if(! exists("csv_dir")){
   csv_dir <- "csv/"
@@ -41,7 +44,7 @@ rm(ff, fg)
 
 keep2 <- c("incidents", "incident.txt", "incident.dtm1", "cluster_summary", "opt.k",
            "incident.lda", "incident.topics", "fire.summ", "fire.summ.lm", 
-           "incidents.fire")
+           "incidents.fire", "ai.results", "ai.summ")
 ```
 
 ```{r v-time}
@@ -285,6 +288,214 @@ incidents.fire <- incidents[! is.na(fire.reports),
          Severity=ifelse(grepl("Unspecified", Old.Sev), "Unspecified", Severity))
 ```
 
+---
+
+## Using AI
+
+This takes a different approach to identifying fire incidents in the CPSC data 
+set. It uses an AI tool to recognize which incidents have fires, and whether there
+was a Li-Ion battery involved. Details of the approach are described in the 
+nearby table.
+
+```{r ai1, eval=! exists("ai.results")}
+fire_reports_ai <- incidents$Incident.Description
+```
+
+
+```{python ai-setup}
+import httpx
+import os
+import re
+
+model = "Llama-4-Maverick-17B-128E-Instruct-FP8"
+
+sys_text = """The text is a description of an incident involving a defective 
+or potentially defective product. The text was submitted by a consumer 
+to the Consumer Product Safety Commission as part of their consumer 
+product monitoring program.
+
+For the text please briefly answer the following question.
+
+QQQ
+"""
+
+question = {
+  "lithium": "Does this incident involve a lithium ion battery?",
+  "fire": "Did a fire occur?"
+}
+
+replicates = 10
+
+```
+
+```{python ai-connect, eval=! exists("ai.results")}
+import openai
+# import numpy as np
+
+test_client = openai.OpenAI(
+  base_url=os.environ.get("RCHAT_URL"),
+  api_key=os.environ.get("RCHAT_API_KEY"),
+  http_client=httpx.Client(verify=False)
+)
+```
+
+```{python ai-run, eval=! exists("ai.results")}
+report = r.fire_reports_ai
+
+output = dict()
+
+for u, v in question.items():
+  qq = re.sub("QQQ", v, sys_text)
+  outey = []  
+  for j in range(reps): 
+    outex = []
+    for i in range(len(report)):
+      try:
+        response = test_client.chat.completions.create(
+          model=model,
+      #    max_tokens=128,
+      #    temperature=0.7,
+      #    top_p=0.95,
+      #    stream=False,
+          messages=[
+            {"role": "system", "content": qq},
+            {"role": "user", "content": report[i]}
+          ]
+        )
+        outex.append(reponse.choices[0].message.content)
+      except Exception as e: 
+      # deal with errors, but for now, do nothing
+#        raise e
+        outex.append("Error")
+    #  print(response.choices[0].message.content)
+    outey.append(outex)
+  output[u] = outey
+```
+
+```{r method-table}
+c("AI Model", py$model,
+  "System Prompt", py$sys_text,
+  "Lithium Question", py$question[[1]],
+  "Fire Question", py$question[[2]],
+  "Replicates", py$replicates
+  ) %>% matrix(ncol=2, byrow=T) %>% as.data.frame() %>% setNames(c("Item", "Value")) %>% 
+  knitr::kable()
+```
+
+Because Large Language Models are inherently stochastic, each question was repeated
+ten times for each incident. The nearby table summarizes the results. The 'Yes' 
+(resp, 'No') column represents the number of incidents in which all replicates 
+agreed that the answer to the question was 'Yes' (resp. 'No'). The 'Unknown' column 
+represents incidents where the replicates did not agree on an answer or where 
+some replicates did not give a 'yes' or 'no' answer. An example of the latter 
+is an incident where the AI give the following response:
+
+> To answer your question: The text does not explicitly state that the incident 
+involves a lithium-ion battery. It only mentions "the battery." Therefore, based 
+on the information provided, we cannot confirm whether the incident involves a 
+lithium-ion battery or not.
+
+For the 'Combined' row, 'No' represents incidents where either Lithium or Fire
+is no, and 'Yes' represents incidents where both Lithium and Fire are 'Yes'. 
+The remaining rows include either the Fire unknowns or the Lithium unknowns in
+the Yes column.
+
+```{r processing, eval=! exists("ai.results")}
+ai.results <- py$output %>% lapply(function(x) do.call("cbind", x))
+# This bit gets the 'yes/no' responses out of the text discussion.
+ai.summ <- ai.res0 %>% lapply(function(x) str_extract(x, "(^|:[[:space:]*]*)([Yy]es|[Nn]o)") %>%
+                                          str_replace_all("[[:space:]*:]", "") %>% 
+                                          matrix(ncol=10))
+```
+
+```{r ai-summary-table}
+ai.summ1 <- ai.summ %>% lapply(function(y) apply(y, 1, function(x) x %>% replace_na("Unknown") %>% 
+                                       { c(length(.[. == "Yes"]), length(.[. == "No"]))} ) %>% t() %>% 
+                                       as.data.frame() %>% setNames(c("Yes", "No")) %>% 
+                                       mutate(result=ifelse(Yes == 10, "Yes", 
+                                                            ifelse(No == 10, "No", "Unknown"))))
+ai.summary.table <- rbind(
+  ai.summ1$lithium$result %>% table(),
+  ai.summ1$fire$result %>% table(),
+  with(ai.summ1, ifelse(lithium$result == "No" | fire$result == "No", "No",
+                 ifelse(lithium$result == "Unknown" | fire$result == "Unknown", "Unknown", "Yes"))) 
+       %>% table(),
+  with(ai.summ1, ifelse(lithium$result == "No" | fire$result == "No", "No",
+                 ifelse(fire$result == "Unknown", "Unknown", "Yes"))) 
+       %>% table(),
+  with(ai.summ1, ifelse(lithium$result == "No" | fire$result == "No", "No",
+                 ifelse(lithium$result == "Unknown", "Unknown", "Yes"))) 
+       %>% table()
+) %>% as.data.frame() %>% cbind(data=c("Lithium", "Fire", "Combined", "Combined - Include Li Unk", "Combined - Include Fire Unk"), .)
+
+knitr::kable(ai.summary.table)
+```
+
+This chart is a ternary plot of the responses where answers were ambiguous.
+
+```{r ai-unknowns-plot}
+figs$ternary <- rbind(cbind(Question="Lithium", ai.summ1$lithium),
+      cbind(Question="Fire",    ai.summ1$fire)) %>% 
+   filter(Yes != 10 & No != 10) %>% 
+  mutate(Unknown=10 - Yes - No, 
+         Unknown=0.5 + Unknown * 0.9,
+         Yes=0.5 + Yes * 0.9,
+         No=0.5 + No * 0.9) %>% 
+   ggtern(aes(x=Yes, y=No, z=Unknown)) + geom_density_tern() + facet_wrap(~ Question)
+
+print(figs$ternary)
+```
+
+
+```{r create-fires, eval=! exists("cpsc.ai")}
+cpsc.ai <- cbind(incidents[,c("Report.Date", "City", "State")],
+                 st_abb=as.character(NA),
+                 incidents[,c("ZIP", "Location", "X.Primary..Victim.Severity")], 
+                 Lithium=as.logical(NA),
+                 Lithium.all=as.logical(NA),
+                 Fire=as.logical(NA),
+                 Fire.all=as.logical(NA),
+                 Description=incidents[,"Incident.Description"]) %>% 
+           rename(Severity = X.Primary..Victim.Severity)%>% 
+  mutate(Report.Date=lubridate::mdy(Report.Date),
+         Severity=ifelse(grepl("^Injury", Severity), "Injury", Severity),
+         Severity=ifelse(grepl("^Incident", Severity), "Incident", Severity),
+         Severity=ifelse(grepl("Unspecified", Severity), "Unspecified", Severity),
+         Lithium=ai.summ1$lithium$Yes == 10,
+         Lithium.all=ai.summ1$lithium$No != 10,
+         Fire=ai.summ1$fire$Yes == 10,
+         Fire.all=ai.summ1$fire$No != 10)
+cpsc.ai$st_abb <- states$abb[match(tolower(cpsc.ai$State), tolower(states$name))]
+# These have been identifed by hand.
+cpsc.ai$st_abb[with(cpsc.ai, Lithium & Fire & is.na(st_abb) & ! is.na(ZIP))] <- 
+      c("OH", NA, "TX", "CA", NA, "PA", NA, NA, "CA", NA, NA)
+```
+
+```{r ai-trend-chart}
+s1 <- cpsc.ai %>% mutate(Year=lubridate::year(Report.Date)) %>% 
+    filter(Lithium, Fire, Year < 2025) %>% 
+    group_by(Year) %>% summarize(Fires=n()) %>% lm(log(Fires) ~ I(Year - 2010), data=.)
+s2 <- summary(s1)$coefficients[2,1:2] 
+s2 <- c(s2, s2[1] + qnorm(c(0.025, 0.975)) * s2[2]) * 100
+```
+
+Below shows the trend of reported Li ion battery fires over time. The number of 
+reported fires is increasing at the rate of about `r formatC(s2[1], digits=2)`&nbsp;% 
+(95&nbsp;% Confidence Interval: 
+`r formatC(s2[3], format="f", digits=1)` - `r formatC(s2[4], format="f", digits=1))`
+per year.
+
+```{r ai-trend-chart}
+figs$figure.12a <- cpsc.ai %>% mutate(Year=lubridate::year(Report.Date)) %>% 
+    filter(Lithium, Fire, Year < 2025) %>% 
+    group_by(Year) %>% summarize(Fires=n()) %>% 
+    ggplot() + aes(x=Year, y=Fires) + geom_point() + geom_smooth(method='lm') + 
+        expand_limits(x=2010, y=10) + scale_y_log10(breaks=1:9 * 10, minor_breaks=NULL) +
+        scale_x_continuous(breaks=2010 + 0:3 * 5, minor_breaks=2010:2025) +
+        theme_bw()
+
+print(figs$figure.12a)
+```
 
 ```{r cleanup-03}
 # Save the relevant file, as below. Then delete everything if you are working in bookdown.
