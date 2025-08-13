@@ -475,11 +475,20 @@ WITH a AS (
   SELECT DISTINCT *
   FROM codelookup
   WHERE fieldid ~* 'prop_use'
+), h AS (
+  SELECT DISTINCT *
+  FROM codelookup
+  WHERE fieldid ~* 'heat_sourc'
+), f AS (
+  SELECT DISTINCT *
+  FROM codelookup
+  WHERE fieldid ~* 'first_ign'
 )
 SELECT
   state,
   fdid,
   fd_name,
+  inc_date,
   extract(year from inc_date) as year,
   extract(month from inc_date) as month,
   prop_use,
@@ -494,18 +503,28 @@ SELECT
   extract(hour from alarm) as tod,
   area_orig,
   a.code_descr as room,
+  heat_sourc,
+  h.code_descr as heat,
+  first_ign,
+  f.code_descr as ifi,
+  CASE
+    WHEN mob_invol in ('1', '2', '3') THEN 'Yes'
+	ELSE 'No'
+  END as mob_invol,
   fire_sprd,
   city,
   state_id,
   zip5,
-  concat_ws(', ', sup_fac_1, sup_fac_2, sup_fac_3) as sup_fac,
-  st_AsEWKT(geom) as wkt
+  concat_ws(', ', sup_fac_1, sup_fac_2, sup_fac_3) as sup_fac--,
+--st_AsEWKT(geom) as wkt
 FROM 
   fireincident JOIN basicincident USING (state, fdid, inc_date, inc_no, exp_no)
                LEFT JOIN incidentaddress USING (state, fdid, inc_date, inc_no, exp_no)
                LEFT JOIN fdheader USING (state, fdid) 
-               LEFT JOIN a ON (area_orig = a.code_value)
-               LEFT JOIN p ON (prop_use  = p.code_value)
+               LEFT JOIN a ON (area_orig  = a.code_value)
+               LEFT JOIN p ON (prop_use   = p.code_value)
+               LEFT JOIN h ON (heat_sourc = h.code_value)
+               LEFT JOIN f ON (first_ign  = f.code_value)
 WHERE
   inc_type ~* '^11' AND
   equip_inv = '229' AND
