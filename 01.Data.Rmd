@@ -565,6 +565,7 @@ details$wkt <- NULL
 # 
 details$sup_fac <- trimws(details$sup_fac, which="both", whitespace="[ ,]") %>%
   sub("^$", NA, .)
+details$inc_date <- lubridate::ymd(details$inc_date)
 ```
 
 ```{r cpsc-data, eval=! exists("incidents")}
