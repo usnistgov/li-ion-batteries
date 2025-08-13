@@ -2,7 +2,7 @@
 title: "Batteries"
 output: html_document
 date: "2024-12-13"
-rmd_files: ["Index.Rmd", "01.Data.Rmd", "02.NFIRS.Rmd", "03.CPSC.Rmd", "04.Recapture.Rmd", "05.FAA_Air.Rmd", "06.BESS.Rmd","07.Figures.Rmd"]
+rmd_files: ["Index.Rmd", "01.Data.Rmd", "01a.Car Fires.Rmd", "02.NFIRS.Rmd", "03.CPSC.Rmd", "04.Recapture.Rmd", "05.FAA_Air.Rmd", "06.BESS.Rmd","07.Figures.Rmd"]
 ---
 
 ```{r setup-00, include=FALSE}
