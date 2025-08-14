@@ -42,7 +42,7 @@ if("carfires.rdata" %in% tolower(ff)){
 load(paste0(intmdt_dir, fg))
 rm(ff, fg)
 
-keep2 <- c("car.fires", "tesla", "test.cases", "results", "totals", "n.est", "car.actions",
+keep2 <- c("car.fires", "tesla", "test.cases", "results", "n.est", "car.actions",
            "nfpa", "stan.model", "stan.mode1", "stan.tesla", "stan.slope", "figs")
 ```
 
@@ -74,7 +74,6 @@ Action taken does not give anything useful. Basically, the only thing it says is
 # 
 # The data was downloaded and imported for use.
 
-# tesla <- openxlsx2::wb_to_df("../Batteries/csv/Tesla Fire .xlsx", 1) %>% 
 tesla <- paste0(csv_dir, "Tesla Fire .xlsx") %>% openxlsx2::wb_to_df(1) %>% 
          { setNames(., c("ID", "Year", "Date", "Country", "State", "Model", "Fatalities", "Description", 
                          paste0("source", 1:(ncol(.) - 8)))) } %>% 
@@ -96,10 +95,17 @@ rm(car.summ)
 ```
 
 ```{r vin-lookup, eval=! exists("test.cases")}
-car.fires$mob_vin_no <- car.fires$mob_vin_no %>% str_replace_all("I", "1")
-car.fires$mob_vin_no <- car.fires$mob_vin_no %>% str_replace_all("O", "0")
+car.fires$inc_date <- lubridate::ymd(car.fires$inc_date)
+car.fires$inc_type <- as.character(car.fires$inc_type)
 
-reg.check.vin <- data.frame(vin=str_pad(toupper(car.fires$mob_vin_no), 17, "right", "*")) %>% 
+car.fires$mob_vin_no[is.na(car.fires$mob_vin_no)] <- "NA"
+car.fires$mob_vin_no <- car.fires$mob_vin_no %>% 
+                                toupper() %>% 
+                                str_replace_all("I", "1") %>% 
+                                str_replace_all("O", "0") %>% 
+                                str_pad(17, "right", "*")
+
+reg.check.vin <- data.frame(vin=car.fires$mob_vin_no) %>% 
                       mutate(r0=str_detect(vin, "[ -]|^[0-9*]+$", negate=T),
                              r1=str_detect(vin, "^[0-9A-HJ-NPR-Z*]{12}"),
                              r2=str_detect(vin, "[0-9*]{5}$"),
@@ -293,52 +299,81 @@ generated quantities {
 # (after building the data tables, of course).
 results <- list(Fires=tesla %>% mutate(year=Year) %>% filter(tolower(Country) == "usa") %>% 
                                 group_by(year) %>% summarize(Tesla=n()) %>% 
-        full_join(car.fires %>% filter(Tesla) %>% group_by(year) %>% summarize(t.fires=n())) %>% 
-        full_join(car.fires %>% filter(BEV, year > 2004) %>% group_by(year) %>% summarize(BEV=n())) %>% 
-        full_join(car.fires %>% filter(Plugin, year > 2004) %>% group_by(year) %>% summarize(Plugin=n())) %>% 
-        full_join(car.fires %>% filter(Hybrid, year > 2004) %>% group_by(year) %>% summarize(Hybrid=n())) %>% 
+        full_join(car.fires %>% mutate(year=lubridate::year(inc_date)) %>% filter(Tesla, year > 2004) %>% 
+                    group_by(year) %>% summarize(t.fires=n())) %>% 
+        full_join(car.fires %>% mutate(year=lubridate::year(inc_date)) %>% filter(BEV, year > 2004) %>% 
+                    group_by(year) %>% summarize(BEV=n())) %>% 
+        full_join(car.fires %>% mutate(year=lubridate::year(inc_date)) %>% filter(Plugin, year > 2004) %>% 
+                    group_by(year) %>% summarize(Plugin=n())) %>% 
+        full_join(car.fires %>% mutate(year=lubridate::year(inc_date)) %>% filter(Hybrid, year > 2004) %>% 
+                    group_by(year) %>% summarize(Hybrid=n())) %>% 
         arrange(year),
                 Both0=tesla %>% filter(tolower(Country) == 'usa') %>% 
                       inner_join(car.fires %>% filter(Tesla),
                                  by=join_by(Date == inc_date, State==state)) %>% 
-                      select(Year, Date, State, Model, Fatalities, 
-                             mob_model, mob_year, mob_vin_no, Description) %>% unique(),
+                      select(ID, Date, State, city, fd_name, Model, mob_model, 
+                             mob_year, ignited, burned, Fatalities, deaths, 
+                             mob_vin_no, inc_type, prop_use, Description) %>% unique(),
                 Both4=tesla %>% filter(tolower(Country) == 'usa') %>% 
                       inner_join(car.fires %>% filter(Tesla) %>% 
                                    mutate(ldate=inc_date - 4, hdate=inc_date + 4),
                                  by=join_by(Date >= ldate, Date <= hdate, State==state)) %>% 
-                      select(Year, Date, inc_date, State, Model, Fatalities, 
-                             mob_model, mob_year, mob_vin_no, Description) %>% unique(),
+                      select(ID, Date, inc_date, State, city, fd_name, Model, mob_model, 
+                             mob_year, ignited, burned, Fatalities, deaths, 
+                             mob_vin_no, inc_type, prop_use, Description) %>% unique(),
                 Both7=tesla %>% filter(tolower(Country) == 'usa') %>% 
                       inner_join(car.fires %>% filter(Tesla) %>% 
                                    mutate(ldate=inc_date - 7, hdate=inc_date + 7),
                                  by=join_by(Date >= ldate, Date <= hdate, State==state)) %>% 
-                      select(Year, Date, inc_date, State, Model, Fatalities, 
-                             mob_model, mob_year, mob_vin_no, Description) %>% unique()
+                      select(ID, Date, inc_date, State, city, fd_name, Model, mob_model, 
+                             mob_year, ignited, burned, Fatalities, deaths, 
+                             mob_vin_no, inc_type, prop_use, Description) %>% unique() %>% 
+                      arrange(ID)
 )
 
+######################################################################
+# The `Both7` cases are reviewed by hand to determine whether they
+# are valid matches. The vector below is the product of that matching.
+
+valid <- c(F, T, T, T, T, F, F, T, 
+           F, T, F, F, F, F, F, F, 
+           F, F, T, T, F, F, F, T, 
+           T, T, F, T, F, T, T)
+
+results$Both7valid <- valid
+rm(valid)
+######################################################################
+
 results$Summary <- 
-  results$Fire %>% full_join(results$Both0 %>% group_by(Year) %>% summarize(both0=n()), 
+  results$Fire %>% full_join(results$Both0 %>% mutate(Year=lubridate::year(Date)) %>% 
+                               group_by(Year) %>% summarize(both0=n()), 
                              by=join_by(year == Year)) %>% 
-                   full_join(results$Both4 %>% group_by(Year) %>% summarize(both4=n()), 
+                   full_join(results$Both4 %>% mutate(Year=lubridate::year(Date)) %>% 
+                               group_by(Year) %>% summarize(both4=n()), 
                              by=join_by(year == Year)) %>% 
-                   full_join(results$Both7 %>% group_by(Year) %>% summarize(both7=n()), 
+                   full_join(results$Both7 %>% filter(valid) %>% 
+                               mutate(Year=lubridate::year(Date)) %>% 
+                               group_by(Year) %>% summarize(both7=n()), 
                              by=join_by(year == Year)) %>% 
               filter(year > 2005, year < 2024) %>% 
               { rbind(., c(NA, colSums(.[,2:9], na.rm=T))) } %>% 
               rename(Year = year) %>% 
               mutate(Year = as.integer(Year), 
 #                     tesla0  = Tesla * t.fires / both0,
-                     tesla4  = Tesla * t.fires / both4,
-#                     tesla7  = Tesla * t.fires / both7,
+#                     tesla4  = Tesla * t.fires / both4,
+                     tesla7  = Tesla * t.fires / both7,
 #                     bev0    = Tesla * BEV / both0,
-                     bev4    = Tesla * BEV / both4,
-#                     bev7    = Tesla * BEV / both7,
+#                     bev4    = Tesla * BEV / both4,
+                     bev7    = Tesla * BEV / both7,
 #                     plugin0 = Tesla * Plugin / both0,
-                     plugin4 = Tesla * Plugin / both4,
-#                     plugin7 = Tesla * Plugin / both7
+#                     plugin4 = Tesla * Plugin / both4,
+                     plugin7 = Tesla * Plugin / both7
                      ) %>% arrange(Year)
 
+```
+
+
+```{r car-fire-table}
 results$Summary[,-c(7,9)] %>% knitr::kable(digits=1)
 ```
 
@@ -349,10 +384,11 @@ year) represents the estimated total for *all* years in the sample.
 
 ```{r run_stan1, eval=! exists("stan.tesla")}
 n.est <- results$Summary %>%
-         select(Year, Tesla, t.fires, BEV, Plugin, both4) %>% 
+         select(Year, Tesla, t.fires, BEV, Plugin, both7) %>% 
          pivot_longer(c(t.fires, BEV, Plugin)) %>% 
+         rename(both=both7) %>% 
          mutate(Tesla=as.integer(Tesla),
-                both4=as.integer(both4),
+                both=as.integer(both),
                 name=ifelse(name == 't.fires', "Tesla", name),
                 value=as.integer(value),
                 est=as.numeric(NA),
@@ -365,7 +401,7 @@ for(i in 1:nrow(n.est)){
     nm <- paste0(sub("t.fires", "Tesla", n.est$name[i]), ":", 
                  ifelse(is.na(n.est$Year[i]), "Total", n.est$Year[i]))
     st.data <- with(n.est, list(S1=Tesla[i], S2=value[i], 
-                                S12=ifelse(is.na(both4[i]), 0, both4[i]),
+                                S12=ifelse(is.na(both[i]), 0, both[i]),
                                 alpha=0.1, scale_p=10))
     stan.tesla[[nm]] <- sampling(stan.model, data=st.data, refresh=0)
     n.est[i,6:9] <- stan.tesla[[nm]] %>% extract("N") %>% magrittr::extract2(1) %>% 
@@ -378,7 +414,7 @@ for(i in 1:nrow(n.est)){
 st.data <- list(T=2023 - 2018, 
                 S1=results$Summary$Tesla[14:18], 
                 S2=results$Summary$t.fires[14:18], 
-                So=ifelse(is.na(results$Summary$both4[14:18]), 0, results$Summary$both4[14:18]),
+                So=ifelse(is.na(results$Summary$both7[14:18]), 0, results$Summary$both7[14:18]),
                 slope1=0, 
                 slope2=0)
 
@@ -428,10 +464,14 @@ Similarly, estimating the rate at which such fires are increasing, we get
 the following table and figure.
 
 ```{r print-slope}
-stan.slope %>% sapply(function(x) extract(x, "r")[[1]] ) %>% exp() %>% subtract(1) %>% 
-               apply(2, function(x) c(mean(x), quantile(x, c(0.025, 0.975)))) %>% 
-               t() %>% as.data.frame() %>% setNames(c("slope", "lcl", "ucl")) %>% 
-               knitr::kable(digits=2)
+slp <- 
+  stan.slope %>% sapply(function(x) extract(x, "r")[[1]] ) %>% exp() %>% subtract(1) %>% 
+                 apply(2, function(x) c(mean(x), quantile(x, c(0.025, 0.975)))) %>% 
+                 t() %>% as.data.frame() %>% setNames(c("slope", "lcl", "ucl")) 
+
+slp %>% knitr::kable(digits=2)
+slp <- slp * 100
+slp$pm <- with(slp, (ucl - lcl) / 2)
 ```
 
 ```{r fires-slope-fig}
@@ -440,26 +480,29 @@ figs$ev.slope <- n.est %>% filter(! is.na(est) & ! is.na(Year)) %>%
 #                   geom_line() + geom_ribbon(alpha=0.3) +  
 #                   geom_point(aes(y=slope), color="blue") + 
                    geom_line(aes(y=slope), color="blue") +
-                   geom_ribbon(aes(ymin=s.lcl, ymax=s.ucl), alpha=0.3, color="blue") + 
+                   geom_ribbon(aes(ymin=s.lcl, ymax=s.ucl), alpha=0.3, fill="blue") + 
                    facet_grid(name ~ .) + 
                    ylab("Estimated Number of Fires")
 ```
 
 
-Fires in Teslas are growing at a rate of about 39&nbsp;% (&pm; 12.5&nbsp;%) per year.
+Fires in Teslas are growing at a rate of about `r slp$slope[1] %>% round(0)`&nbsp;% 
+(&pm; `r slp$pm %>% round(1)`&nbsp;%) per year.
 Fires in EVs in general and Plugin vehicles (including EVs) are growing even faster,
  likely reflecting the fact that non-Teslas are a growing proportion of the market.
- Fires in EVs in general are growing at a rate of about 44&nbsp;% (&pm; 12.2&nbsp;%) per
- year, and in Plugin vehicles at a rate of about 42&nbsp;% (&pm; 9.7&nbsp;%) per
+ Fires in EVs in general are growing at a rate of about `r slp$slope[1] %>% round(0)`&nbsp;% 
+ (&pm; `r slp$pm %>% round(1)`&nbsp;%) per year, and in Plugin vehicles at a rate
+ of about `r slp$slope[1] %>% round(0)`&nbsp;% (&pm; `r slp$pm %>% round(1)`&nbsp;%) per
  year.
 
 ```{r plan-c}
 nfpa <- nfpa %>% mutate(ratio=NFPA / NFIRS, vin.ratio=NFPA/VINs)
 ```
 
-It is interesting that about 1 in 3 car fires where the VIN is recorded generally 
-end up in NFIRS, but only about 1 in 6.5 EV fires where the VIN is recorded end up 
-in NFIRS. That makes the NFPA estimates not terribly useful.
+It is interesting that about 1 in `r nfpa$vin.ratio %>% mean(na.rm=T) %>% round(1)` 
+car fires where the VIN is recorded generally end up in NFIRS, but only about 1 in 
+`r with(results$Summary, Tesla[19] / both7[19]) %>% round(1)` EV fires where the 
+VIN is recorded end up in NFIRS. That makes the NFPA estimates not terribly useful.
 
 I don't understand the reason for the difference, but it probably needs to be 
 discussed. One possible explanation is that the fire is much more likely to 
