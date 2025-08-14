@@ -359,19 +359,17 @@ order by
 ```
 
 ```{sql vin-vehicles, connection=ipsdi.nfirs, output.var="car.fires", eval=FALSE}
-with --inv as (
---Select DISTINCT * From codelookup Where fieldid ~* 'mob_invol'
---), 
-typ as (
+with typ as (
 Select DISTINCT * From codelookup Where fieldid ~* 'mob_type'
 ), mk as (
 Select DISTINCT * From codelookup Where fieldid ~* 'mob_make'
 )
 
 Select 
-  state,
-  extract(year from inc_date) AS year,
-  inc_date,
+  f.state,
+  fd_name,
+  f.inc_date,
+  city,
   CASE 
     WHEN mob_invol in ('2', '3') THEN True
     ELSE False
@@ -384,10 +382,15 @@ Select
   coalesce(mk.code_descr, mob_make) AS mob_make,
   mob_model,
   mob_year,
-  mob_vin_no
-From fireincident LEFT JOIN typ ON mob_type  = typ.code_value 
-                  LEFT JOIN mk  ON mob_make  = mk.code_value
---                  LEFT JOIN inv ON mob_invol = inv.code_value
+  mob_vin_no,
+  inc_type,
+  prop_use,
+  coalesce(ff_death, 0) + coalesce(oth_death, 0) AS deaths
+From fireincident f LEFT JOIN basicincident b USING (state, fdid, inc_date, inc_no, exp_no)
+                    LEFT JOIN incidentaddress USING (state, fdid, inc_date, inc_no, exp_no)
+                    LEFT JOIN fdheader USING (state, fdid) 
+                    LEFT JOIN typ ON mob_type  = typ.code_value 
+                    LEFT JOIN mk  ON mob_make  = mk.code_value
 Where coalesce(mob_vin_no, '') != ''
 ```
 
@@ -539,7 +542,7 @@ selected <- paste0(csv_dir, "selected.csv") %>% read.csv()
 tesla <- paste0(csv_dir, "tesla.summ.csv") %>% read.csv()
 tesla_detail <- paste0(csv_dir, "Tesla.csv") %>% read.csv()
 car.actions <- paste0(csv_dir, "action.taken.csv") %>% read.csv()
-car.fires <- paste0(csv_dir, "car.fires.csv") %>% read.csv()
+car.fires <- paste0(csv_dir, "car.fires.csv") %>% unz("car.fires.csv", "r") %>% read.csv()
 structures <- paste0(csv_dir, "structures.csv") %>% read.csv()
 details <- paste0(csv_dir, "details.new.csv") %>% read.csv()
 ```
