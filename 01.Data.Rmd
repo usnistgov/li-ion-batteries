@@ -592,10 +592,140 @@ incident.txt <- with(incidents,
                               paste0("\nCompany Comments: ", Company.Comments))))
 ```
 
+```{stan base-1, output.var="stan.model"}
+data {
+  int<lower=0>       S1;         // Number of cars in sample 1
+  int<lower=0>       S2;         // Number of cars in sample 2
+  int<lower=0>       S12;        // Number of cars in both samples
+  real               alpha;
+  real               scale_p;
+}
+
+transformed data {
+  int      which;
+  real     theta;
+  real     min_N;
+  real     scale_N;
+
+  if(S1 <= S2){
+    which = 1;
+    theta = alpha ^ (1. / S2);
+  } else {
+    which = 2;
+    theta = alpha ^ (1. / S1);
+  }
+  if(S12 == 0){
+    scale_N = sqrt(S1 * S2 / ((1 - alpha ^ (1. / S1)) * (1 - alpha ^ (1. / S2))));
+  } else {
+    scale_N = S1 * S2 / S12;
+  }
+  min_N = max(S1, S2) / scale_N;
+}
+
+parameters {
+  vector<lower=0, upper=1>[2]   p;
+  real<lower=min_N>             N_hat;
+}
+
+transformed parameters {
+  real    N = N_hat * scale_N;
+}
+
+model {
+
+  target += lgamma(N + 1) - lgamma(S1 + 1) - lgamma(N - S1 + 1)
+            + S1 * log(p[1]) + (N - S1) * log(1 - p[1]);
+  target += lgamma(N + 1) - lgamma(S2 + 1) - lgamma(N - S2 + 1)
+            + S2 * log(p[2]) + (N - S2) * log(1 - p[2]);
+  if(S12 == 0){
+    theta ~ beta((1 - p[which]) * scale_p, p[which] * scale_p);
+  } else {
+    target += lgamma(S1 + 1) - lgamma(S12 + 1) - lgamma(S1 - S12 + 1)
+              + S12 * log(p[2]) + (S1 - S12) * log(1 - p[2]);
+  }
+}
+
+generated quantities {
+}
+```
+
+```{stan slope-1, output.var="stan.mode1"}
+// This differs from the version above in that it computes a slope over time
+// instead of computing estimated values for each year separately.
+data {
+  int<lower=1>          T;       // Number of time periods
+  vector[T]             S1;      // Sample 1 Counts
+  vector[T]             S2;      // Sample 2 Counts
+  vector[T]             So;      // Sample Overlap Counts
+  int<lower=0, upper=1> slope1;  // 0: No; 1: Yes
+  int<lower=0, upper=1> slope2;  // 0: No; 1: Yes
+}
+
+transformed data {
+
+  matrix[T,3]    dats = append_col(append_col(S1, S2), So);
+  
+  real     min_N;
+  real     scale_N = 0;
+  int      k=0;
+  for(i in 1:T){
+    if(So[i] > 0){
+      scale_N += S1[i] * S2[i] / So[i];
+      k = k + 1;
+    }
+  }
+  scale_N = scale_N / k;
+  
+  min_N = max(append_row(S1, S2)) / scale_N;
+}
+
+parameters {
+// The affine transformations make sure that Stan's initial sampling occurs
+// near the actual expected values. Otherwise bad initial values become too
+// common to reliably come up with results.
+  vector<offset=-2>[1 + slope1]  p1_lgt;
+  vector<offset=-2>[1 + slope2]  p2_lgt;
+  real<multiplier=0.25>          r;
+  real<lower=min_N>              N_hat;
+}
+
+transformed parameters {
+  vector[T]    N;
+  vector[T]    p1;
+  vector[T]    p2;
+  for(i in 1:T){
+    N[i] = N_hat * scale_N * exp((i - 1) * r);
+    if(slope1 == 1){
+      p1[i] = inv_logit(p1_lgt[1] + (i - 1) * p1_lgt[2]);
+    } else {
+      p1[i] = inv_logit(p1_lgt[1]);
+    }
+    if(slope2 == 1){
+      p2[i] = inv_logit(p2_lgt[1] + (i - 1) * p2_lgt[2]);
+    } else {
+      p2[i] = inv_logit(p2_lgt[1]);
+    }
+  }
+}
+
+model {
+  matrix[T, 3]   p_hat = append_col(append_col(p1, p2), p1 .* p2);
+  for(i in 1:T){
+    for(j in 1:3){
+      target += lgamma(N[i] + 1) - lgamma(dats[i,j] + 1) - lgamma(N[i] - dats[i,j] + 1)
+              + dats[i,j] * log(p_hat[i,j]) + (N[i] - dats[i,j]) * log(1 - p_hat[i,j]);
+  }}
+}
+
+generated quantities {
+}
+```
+
 ```{r cleanup-01}
 save(data.summ, selected, structures, details, file=paste0(intmdt_dir, "nfirs.data.RData"))
 save(car.fires, car.summ, car.actions, file=paste0(intmdt_dir, "CarFires.data.RData"))
 save(incidents, incident.txt, file=paste0(intmdt_dir, "cpsc.data.RData"))
 save(incidents, details, file=paste0(intmdt_dir, "recapture.data.RData"))
+save(stan.model, stan.mode1, file=paste0(intmdt_dir, "stan.models.RData"))
 rm(list=setdiff(ls(), keep))
 ```
