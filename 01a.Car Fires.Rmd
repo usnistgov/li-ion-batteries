@@ -42,8 +42,10 @@ if("carfires.rdata" %in% tolower(ff)){
 load(paste0(intmdt_dir, fg))
 rm(ff, fg)
 
+load(paste0(intmdt_dir, "stan.models.RData"))
+
 keep2 <- c("car.fires", "tesla", "test.cases", "results", "n.est", "car.actions",
-           "nfpa", "stan.model", "stan.mode1", "stan.tesla", "stan.slope", "figs")
+           "nfpa", "stan.tesla", "stan.slope", "figs")
 ```
 
 This looks at action taken for Li ion vehicle fires to see if there is anything 
@@ -158,7 +160,7 @@ car.fires$Hybrid<- car.fires$mob_vin_no %in% test.cases$vin[str_detect(test.case
 ```
 
 
-```{stan v2, output.var="stan.model", eval=! exists("stan.model")}
+```{stan v2, output.var="stan.model", eval=FALSE}
 data {
   int<lower=0>       S1;         // Number of cars in sample 1
   int<lower=0>       S2;         // Number of cars in sample 2
@@ -215,7 +217,7 @@ generated quantities {
 }
 ```
 
-```{stan stan-slope-v, output.var="stan.mode1", eval=! exists("stan.mode1")}
+```{stan stan-slope-v, output.var="stan.mode1", eval=FALSE}
 // This differs from the version above in that it computes a slope over time
 // instead of computing estimated values for each year separately.
 data {
@@ -297,39 +299,19 @@ generated quantities {
 ```{r car-fire-est, eval=! exists("results")}
 # This section just does the basic Capture-Recapture calculation
 # (after building the data tables, of course).
-results <- list(Fires=tesla %>% mutate(year=Year) %>% filter(tolower(Country) == "usa") %>% 
-                                group_by(year) %>% summarize(Tesla=n()) %>% 
-        full_join(car.fires %>% mutate(year=lubridate::year(inc_date)) %>% filter(Tesla, year > 2004) %>% 
-                    group_by(year) %>% summarize(t.fires=n())) %>% 
-        full_join(car.fires %>% mutate(year=lubridate::year(inc_date)) %>% filter(BEV, year > 2004) %>% 
-                    group_by(year) %>% summarize(BEV=n())) %>% 
-        full_join(car.fires %>% mutate(year=lubridate::year(inc_date)) %>% filter(Plugin, year > 2004) %>% 
-                    group_by(year) %>% summarize(Plugin=n())) %>% 
-        full_join(car.fires %>% mutate(year=lubridate::year(inc_date)) %>% filter(Hybrid, year > 2004) %>% 
-                    group_by(year) %>% summarize(Hybrid=n())) %>% 
-        arrange(year),
-                Both0=tesla %>% filter(tolower(Country) == 'usa') %>% 
-                      inner_join(car.fires %>% filter(Tesla),
-                                 by=join_by(Date == inc_date, State==state)) %>% 
-                      select(ID, Date, State, city, fd_name, Model, mob_model, 
-                             mob_year, ignited, burned, Fatalities, deaths, 
-                             mob_vin_no, inc_type, prop_use, Description) %>% unique(),
-                Both4=tesla %>% filter(tolower(Country) == 'usa') %>% 
-                      inner_join(car.fires %>% filter(Tesla) %>% 
-                                   mutate(ldate=inc_date - 4, hdate=inc_date + 4),
-                                 by=join_by(Date >= ldate, Date <= hdate, State==state)) %>% 
-                      select(ID, Date, inc_date, State, city, fd_name, Model, mob_model, 
-                             mob_year, ignited, burned, Fatalities, deaths, 
-                             mob_vin_no, inc_type, prop_use, Description) %>% unique(),
-                Both7=tesla %>% filter(tolower(Country) == 'usa') %>% 
-                      inner_join(car.fires %>% filter(Tesla) %>% 
-                                   mutate(ldate=inc_date - 7, hdate=inc_date + 7),
-                                 by=join_by(Date >= ldate, Date <= hdate, State==state)) %>% 
-                      select(ID, Date, inc_date, State, city, fd_name, Model, mob_model, 
-                             mob_year, ignited, burned, Fatalities, deaths, 
-                             mob_vin_no, inc_type, prop_use, Description) %>% unique() %>% 
-                      arrange(ID)
-)
+results <- list()
+for(i in c(0, 4, 7)){
+  nm <- paste0("Both", i)
+  results[[nm]] <- tesla %>% filter(tolower(Country) == 'usa') %>% 
+                             inner_join(car.fires %>% filter(Tesla) %>% 
+                                          mutate(ldate=inc_date - i, hdate=inc_date + i),
+                                        by=join_by(Date >= ldate, Date <= hdate, State==state)) %>% 
+                             mutate(valid=T) %>% 
+                             select(ID, Date, inc_date, State, city, fd_name, Model, mob_model, 
+                                    mob_year, ignited, burned, Fatalities, deaths, 
+                                    mob_vin_no, inc_type, prop_use, valid, Description) %>% 
+                             unique() %>% arrange(ID)
+}
 
 ######################################################################
 # The `Both7` cases are reviewed by hand to determine whether they
@@ -340,55 +322,80 @@ valid <- c(F, T, T, T, T, F, F, T,
            F, F, T, T, F, F, F, T, 
            T, T, F, T, F, T, T)
 
-results$Both7valid <- valid
+results$Both7$valid <- valid
 rm(valid)
 ######################################################################
 
 results$Summary <- 
-  results$Fire %>% full_join(results$Both0 %>% mutate(Year=lubridate::year(Date)) %>% 
-                               group_by(Year) %>% summarize(both0=n()), 
-                             by=join_by(year == Year)) %>% 
-                   full_join(results$Both4 %>% mutate(Year=lubridate::year(Date)) %>% 
-                               group_by(Year) %>% summarize(both4=n()), 
-                             by=join_by(year == Year)) %>% 
-                   full_join(results$Both7 %>% filter(valid) %>% 
-                               mutate(Year=lubridate::year(Date)) %>% 
-                               group_by(Year) %>% summarize(both7=n()), 
-                             by=join_by(year == Year)) %>% 
-              filter(year > 2005, year < 2024) %>% 
-              { rbind(., c(NA, colSums(.[,2:9], na.rm=T))) } %>% 
-              rename(Year = year) %>% 
-              mutate(Year = as.integer(Year), 
-#                     tesla0  = Tesla * t.fires / both0,
-#                     tesla4  = Tesla * t.fires / both4,
-                     tesla7  = Tesla * t.fires / both7,
-#                     bev0    = Tesla * BEV / both0,
-#                     bev4    = Tesla * BEV / both4,
-                     bev7    = Tesla * BEV / both7,
-#                     plugin0 = Tesla * Plugin / both0,
-#                     plugin4 = Tesla * Plugin / both4,
-                     plugin7 = Tesla * Plugin / both7
-                     ) %>% arrange(Year)
+    full_join(tesla %>% filter(tolower(Country) == "usa") %>% group_by(Year) %>% 
+                        summarize(Total=n(), FL=sum(State == 'FL'), `No FL`=sum(State != 'FL')) %>% 
+                        pivot_longer(2:4, names_to="State", values_to="Tesla"),
+              rbind(car.fires %>% mutate(Year = lubridate::year(inc_date), State="Total") %>% 
+                             filter(Year > 2005) %>% group_by(State, Year) %>% 
+                             summarize(t.fires=sum(Tesla), BEV=sum(BEV), 
+                                       Plugin=sum(Plugin), Hybrid=sum(Hybrid)),
+                    car.fires %>% mutate(Year = lubridate::year(inc_date), 
+                                         State=ifelse(state == 'FL', 'FL', 'No FL')) %>% 
+                             filter(Year > 2005, ! is.na(State)) %>% group_by(State, Year) %>% 
+                             summarize(t.fires=sum(Tesla), BEV=sum(BEV), 
+                                       Plugin=sum(Plugin), Hybrid=sum(Hybrid))))
 
+for(i in c("Both0", "Both4", "Both7")){
+  results$Summary <- left_join(results$Summary,
+                               results[[i]] %>% mutate(Year=lubridate::year(Date)) %>% 
+                                                filter(valid) %>% group_by(Year) %>% 
+                                                summarize(Total=n(), 
+                                                          FL=sum(State == "FL"), 
+                                                          `No FL`=sum(State != 'FL')) %>% 
+                                                pivot_longer(2:4, names_to="State", values_to=i))
+  results$Summary[[i]][is.na(results$Summary[[i]])] <- 0
+}
+
+results$Summary <- rbind(results$Summary,
+                         results$Summary %>% filter(Year < 2024) %>% group_by(State) %>%
+                             summarize(across(.cols=c("Tesla", "t.fires", "BEV", "Plugin", 
+                                                      "Hybrid", "Both0", "Both4", "Both7"), 
+                                              .fns=function(x) sum(x, na.rm=T))) %>% 
+                             cbind(Year=NA, .))
+
+results$Summary <- results$Summary %>% 
+              mutate(#tesla0  = Tesla * t.fires / Both0,
+#                     tesla4  = Tesla * t.fires / Both4,
+                      tesla7  = Tesla * t.fires / Both7,
+#                     bev0    = Tesla * BEV / Both0,
+#                     bev4    = Tesla * BEV / Both4,
+                      bev7    = Tesla * BEV / Both7,
+#                     plugin0 = Tesla * Plugin / Both0,
+#                     plugin4 = Tesla * Plugin / Both4,
+                      plugin7 = Tesla * Plugin / Both7
+                     ) %>% arrange(State, Year)
 ```
 
+Looking at the data, Florida is dramatically different than the rest of the 
+states, with a very high degree of overlap between the `TeslaFires.com` dataset
+and NFIRS. Since Florida is very different from the rest of the country in terms
+of the overlap between the data sets, the analysis was run twice. First, the 
+entire dataset was analyzed as a whole. Second, Florida and the rest of the 
+country were analyzed separately.
 
 ```{r car-fire-table}
-results$Summary[,-c(7,9)] %>% knitr::kable(digits=1)
+results$Summary[,-c(7:9)] %>% knitr::kable(digits=0)
 ```
 
-The table above list capture-recapture estimate for the number of Tesla, EV, 
-and Plugin-Hybrid vehicle fires. Note that the last column (the 'plugin4' column)
+The table above lists capture-recapture estimates for the number of Tesla, EV, 
+and Plugin-Hybrid vehicle fires. Note that the last column (the 'Plugin7' column)
 represents the total of EV and plugin-hybrid fires. The final line (with no 
-year) represents the estimated total for *all* years in the sample.
+year) represents the estimated total for all years in the sample. In addition,
+Total results are reported as well as the split results for Florida and the 
+rest of the country.
 
 ```{r run_stan1, eval=! exists("stan.tesla")}
-n.est <- results$Summary %>%
-         select(Year, Tesla, t.fires, BEV, Plugin, both7) %>% 
+n.est <- results$Summary %>% filter(is.na(Year) | Year < 2024) %>% 
+         select(Year, State, Tesla, t.fires, BEV, Plugin, Both7) %>% 
          pivot_longer(c(t.fires, BEV, Plugin)) %>% 
-         rename(both=both7) %>% 
+         rename(Both=Both7) %>% 
          mutate(Tesla=as.integer(Tesla),
-                both=as.integer(both),
+                Both=as.integer(Both),
                 name=ifelse(name == 't.fires', "Tesla", name),
                 value=as.integer(value),
                 est=as.numeric(NA),
@@ -396,56 +403,66 @@ n.est <- results$Summary %>%
                 ucl=est,
                 med=est)
 stan.tesla <- list()
+nm <- paste0(n.est$State, ":", n.est$name, ":", ifelse(is.na(n.est$Year), "Total", n.est$Year))
+vv <- with(n.est, Tesla * Both * value)
 for(i in 1:nrow(n.est)){
-  if(is.na(n.est$Year[i]) | n.est$Year[i] > 2018){
-    nm <- paste0(sub("t.fires", "Tesla", n.est$name[i]), ":", 
-                 ifelse(is.na(n.est$Year[i]), "Total", n.est$Year[i]))
+  if(with(n.est, is.na(Year[i]) | Year[i] > 2018) & vv[i] > 0){
     st.data <- with(n.est, list(S1=Tesla[i], S2=value[i], 
-                                S12=ifelse(is.na(both[i]), 0, both[i]),
+                                S12=ifelse(is.na(Both[i]), 0, Both[i]),
                                 alpha=0.1, scale_p=10))
-    stan.tesla[[nm]] <- sampling(stan.model, data=st.data, refresh=0)
-    n.est[i,6:9] <- stan.tesla[[nm]] %>% extract("N") %>% magrittr::extract2(1) %>% 
+    stan.tesla[[nm[i]]] <- sampling(stan.model, data=st.data, refresh=0)
+    n.est[i,7:10] <- stan.tesla[[nm[i]]] %>% extract("N") %>% magrittr::extract2(1) %>% 
                     {c(mean(.), quantile(., c(0.025, 0.975, 0.5)))} %>% t()
   }
 }
+rm(i, nm, vv)
 ```
 
 ```{r run_stan2, eval=! exists("stan.slope")}
-st.data <- list(T=2023 - 2018, 
-                S1=results$Summary$Tesla[14:18], 
-                S2=results$Summary$t.fires[14:18], 
-                So=ifelse(is.na(results$Summary$both7[14:18]), 0, results$Summary$both7[14:18]),
-                slope1=0, 
-                slope2=0)
-
-st.data$S2 <- results$Summary$t.fires[14:18]
-stan.slope <- list(Tesla=sampling(stan.mode1, data=st.data, refresh=0))
-st.data$S2 <- results$Summary$BEV[14:18]
-stan.slope$BEV <- sampling(stan.mode1, data=st.data, refresh=0)
-st.data$S2 <- results$Summary$Plugin[14:18]
-stan.slope$Plugin <- sampling(stan.mode1, data=st.data, refresh=0)
-
+stan.slope=list()
+ndx <- results$Summary$Year %in% 2019:2023
+for(i in c("Total", "FL", "No FL")){
+  ndy <- results$Summary$State == i
+  for(j in c("t.fires", "BEV", "Plugin")){
+    st.data <- list(T=2023 - 2018, 
+                    S1=results$Summary$Tesla[ndx & ndy], 
+                    S2=results$Summary[[j]][ndx & ndy], 
+                    So=ifelse(is.na(results$Summary$Both7[ndx & ndy]), 0, 
+                              results$Summary$Both7[ndx & ndy]),
+                    slope1=0, 
+                    slope2=0)
+    nm <- paste0(i, ":", sub("t.fires", "Tesla", j))
+    stan.slope[[nm]] <- sampling(stan.mode1, data=st.data, refresh=0)
+  }
+}
 ```
 
 
 ```{r more-n-est}
 # Add the slope into the n.est data frame
-n.est <- stan.slope %>% lapply(function(y) y %>% extract("N") %>% magrittr::extract2(1) %>% 
+tmp <- stan.slope %>% lapply(function(y) y %>% extract("N") %>% magrittr::extract2(1) %>% 
                                   apply(2, function(x) c(mean(x), quantile(x, c(0.025, 0.975, 0.5)))) %>% 
-                                  t() ) %>% 
-               do.call("rbind", .) %>% 
-               as.data.frame() %>% setNames(c("slope", "s.lcl", "s.ucl", "s.med")) %>%
-               cbind(name=rep(c("Tesla", "BEV", "Plugin"), each=5), 
-                     Year=rep(2019:2023, 3), .) %>% 
-               left_join(n.est, .)
+                                  t() %>% as.data.frame() %>% 
+                                 setNames(c("slope", "s.lcl", "s.ucl", "s.med"))) 
+
+for(i in names(tmp)){
+  nm <- strsplit(i, ":")[[1]]
+  tmp[[i]] <- cbind(Year=2019:2023,
+                    State=nm[1],
+                    name=nm[2],
+                    tmp[[i]])
+}
+
+n.est <- left_join(n.est, do.call("rbind", tmp))
+rm(tmp, i, nm)
 ```
 
 ```{r fires-fig}
 if(! exists("figs")) figs <- list()
-figs$ev <- n.est %>% filter(! is.na(est) & ! is.na(Year)) %>% 
-                ggplot() + aes(x=Year, y=est, ymin=lcl, ymax=ucl) + geom_point() + geom_line() +
-                   geom_ribbon(alpha=0.3) + facet_grid(name ~ .) + 
-                   ylab("Estimated Number of Fires")
+figs$ev <- n.est %>% filter(! is.na(est) & ! is.na(Year) & name != "Tesla") %>% 
+                ggplot() + aes(x=Year, y=est, ymin=lcl, ymax=ucl, group=State, color=State) + 
+                   geom_point() + geom_line() + geom_errorbar(width=0.05) + facet_grid(name ~ .) + 
+                   scale_y_log10() + ylab("Estimated Number of Fires")
 ```
 
 The table below lists the Bayesian estimates for the number of fires for each
@@ -455,7 +472,7 @@ includes both EVs and plugin hybrids.
 
 ```{r tesla-table}
 n.est %>% filter(is.na(Year) | Year > 2018) %>% 
-          arrange(name, Year) %>% select(name, Year, est, lcl, ucl) %>% 
+          arrange(name, Year) %>% select(name, State, Year, est, lcl, ucl) %>% 
           mutate(Year=as.character(Year), Year=ifelse(is.na(Year), "Total", Year)) %>% 
           knitr::kable()
 ```
@@ -467,20 +484,24 @@ the following table and figure.
 slp <- 
   stan.slope %>% sapply(function(x) extract(x, "r")[[1]] ) %>% exp() %>% subtract(1) %>% 
                  apply(2, function(x) c(mean(x), quantile(x, c(0.025, 0.975)))) %>% 
-                 t() %>% as.data.frame() %>% setNames(c("slope", "lcl", "ucl")) 
+                 t() %>% as.data.frame() %>% 
+                 cbind(names(stan.slope) %>% strsplit(":") %>% do.call("rbind", .), .) %>% 
+                 setNames(c("State", "Type", "slope", "lcl", "ucl"))
 
+row.names(slp) <- NULL
 slp %>% knitr::kable(digits=2)
 slp <- slp * 100
 slp$pm <- with(slp, (ucl - lcl) / 2)
 ```
 
 ```{r fires-slope-fig}
-figs$ev.slope <- n.est %>% filter(! is.na(est) & ! is.na(Year)) %>% 
-                ggplot() + aes(x=Year, y=est, ymin=lcl, ymax=ucl) + geom_point() + 
+figs$ev.slope <- n.est %>% filter(! is.na(est) & ! is.na(Year), name != "Tesla") %>% 
+                ggplot() + aes(x=Year, y=est, ymin=lcl, ymax=ucl, group=State, color=State, fill=State) + 
+                   geom_point() + geom_errorbar(width=0.05) + 
 #                   geom_line() + geom_ribbon(alpha=0.3) +  
 #                   geom_point(aes(y=slope), color="blue") + 
-                   geom_line(aes(y=slope), color="blue") +
-                   geom_ribbon(aes(ymin=s.lcl, ymax=s.ucl), alpha=0.3, fill="blue") + 
+                   geom_line(aes(y=slope)) +
+                   geom_ribbon(aes(ymin=s.lcl, ymax=s.ucl), alpha=0.3) + 
                    facet_grid(name ~ .) + 
                    ylab("Estimated Number of Fires")
 ```
@@ -509,6 +530,18 @@ discussed. One possible explanation is that the fire is much more likely to
 destroy things like VIN numbers for the for EV fires, or the aggressive EV fire
 simply makes collecting that information too hazardous.
 
+Florida reports VIN numbers for better than 1 in 2 EV fires in the 
+state (based on these results), which is approximately the rate at which they report 
+VIN numbers of all vehicle fires. That suggests they have had only about 36 EV
+fires ever in Florida. This seems unrealistically low, especially when compared
+to the rest of the country. Excluding Florida, VIN numbers are reported for only 
+about 1 in 30 EV fires. 
+
+This has a significant effect on estimates of the number of fires. Without Florida,
+estimates are about 1.5 times larger than when Florida is included. Given that 
+the Florida number seem unrealistically low, and the almost unreasonably high rate
+at which this data suggest that Florida records VIN numbers for Li ion battery 
+vehicle fires, the fire estimates made excluding Florida are likely more reliable.
 
 
 ```{r cleanup-01a}
