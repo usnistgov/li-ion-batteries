@@ -46,7 +46,24 @@ keep2 <- c("incidents", "incident.txt", "incident.dtm1", "cluster_summary", "opt
            "incident.lda", "incident.topics", "fire.summ", "fire.summ.lm", 
            "incidents.fire", "ai.results", "ai.summ")
 
+
+
+
+source("load.files.R")
+if(load.data(final=c("cpsc.RData"), 
+             data =c("cpsc.data.RData"), 
+             dir=intmdt_dir) == 1) stop("The data files needed for the Ca Fires analysis are not present!")
+
+rm(load.data)
+
+keep2 <- list(cpsc=c("incidents", "incident.txt", "incident.dtm1", "cluster_summary", "opt.k",
+                     "incident.lda", "incident.topics", "fire.summ", "fire.summ.lm", 
+                     "incidents.fire", "ai.results", "ai.summ")
+)
 if(! exists("figs")) figs <- list()
+
+
+
 ```
 
 ```{r v-time}
@@ -502,6 +519,8 @@ print(figs$figure.12a)
 ```{r cleanup-03}
 # Save the relevant file, as below. Then delete everything if you are working in bookdown.
 # That means that a `bookdown` flag needs to be set somehow. And then unset at the end.
-save(list=intersect(keep2, ls()), file=paste0(intmdt_dir, "cpsc.RData"))
+for(i in names(keep2)){
+  save(list=intersect(keep2[[i]], ls()), file=paste0(intmdt_dir, i, ".RData"))
+}
 rm(list=setdiff(ls(), keep))
 ```
