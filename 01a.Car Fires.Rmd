@@ -490,7 +490,7 @@ slp <-
 
 row.names(slp) <- NULL
 slp %>% knitr::kable(digits=2)
-slp <- slp * 100
+for(i in 3:5) slp[[i]] <- slp[[i]] * 100
 slp$pm <- with(slp, (ucl - lcl) / 2)
 ```
 
@@ -507,13 +507,13 @@ figs$ev.slope <- n.est %>% filter(! is.na(est) & ! is.na(Year), name != "Tesla")
 ```
 
 
-Fires in Teslas are growing at a rate of about `r slp$slope[1] %>% round(0)`&nbsp;% 
-(&pm; `r slp$pm %>% round(1)`&nbsp;%) per year.
+Fires in Teslas are growing at a rate of about `r slp$slope[7] %>% round(0)`&nbsp;% 
+(&pm; `r slp$pm[7] %>% round(1)`&nbsp;%) per year.
 Fires in EVs in general and Plugin vehicles (including EVs) are growing even faster,
  likely reflecting the fact that non-Teslas are a growing proportion of the market.
- Fires in EVs in general are growing at a rate of about `r slp$slope[1] %>% round(0)`&nbsp;% 
- (&pm; `r slp$pm %>% round(1)`&nbsp;%) per year, and in Plugin vehicles at a rate
- of about `r slp$slope[1] %>% round(0)`&nbsp;% (&pm; `r slp$pm %>% round(1)`&nbsp;%) per
+ Fires in EVs in general are growing at a rate of about `r slp$slope[8] %>% round(0)`&nbsp;% 
+ (&pm; `r slp$pm[8] %>% round(1)`&nbsp;%) per year, and in Plugin vehicles at a rate
+ of about `r slp$slope[9] %>% round(0)`&nbsp;% (&pm; `r slp$pm[9] %>% round(1)`&nbsp;%) per
  year.
 
 ```{r plan-c}
@@ -522,8 +522,9 @@ nfpa <- nfpa %>% mutate(ratio=NFPA / NFIRS, vin.ratio=NFPA/VINs)
 
 It is interesting that about 1 in `r nfpa$vin.ratio %>% mean(na.rm=T) %>% round(1)` 
 car fires where the VIN is recorded generally end up in NFIRS, but only about 1 in 
-`r with(results$Summary, Tesla[19] / both7[19]) %>% round(1)` EV fires where the 
-VIN is recorded end up in NFIRS. That makes the NFPA estimates not terribly useful.
+`r with(results$Summary %>% filter(is.na(Year)), Tesla[2] / Both7[2]) %>% round(1)` 
+EV fires where the VIN is recorded end up in NFIRS. That makes the NFPA estimates 
+not terribly useful.
 
 I don't understand the reason for the difference, but it probably needs to be 
 discussed. One possible explanation is that the fire is much more likely to 
