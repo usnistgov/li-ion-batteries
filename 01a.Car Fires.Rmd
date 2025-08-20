@@ -40,6 +40,7 @@ keep2 <- list(CarFires=c("car.fires", "tesla", "results", "n.est", "car.actions"
               CarFires.stan=c("stan.slope", "stan.tesla"),
               vin.data="test.cases"
 )
+if(! exists("figs")) figs <- list()
 ```
 
 This looks at action taken for Li ion vehicle fires to see if there is anything 
@@ -451,7 +452,6 @@ rm(tmp, i, nm)
 ```
 
 ```{r fires-fig}
-if(! exists("figs")) figs <- list()
 figs$ev <- n.est %>% filter(! is.na(est) & ! is.na(Year) & name != "Tesla") %>% 
                 ggplot() + aes(x=Year, y=est, ymin=lcl, ymax=ucl, group=State, color=State) + 
                    geom_point() + geom_line() + geom_errorbar(width=0.05) + facet_grid(name ~ .) + 

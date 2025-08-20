@@ -26,31 +26,27 @@ if(! exists("intmdt_dir")){
   intmdt_dir <- "rdata/"
 }
 
-# Either load the completed data (in NFIRS.RData) 
-# or the relevant base data in NFIRS.Data.RData.
-ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
-if("nfirs.rdata" %in% tolower(ff)){
-  fg <- "nfirs.rdata" %>% match(tolower(ff)) %>% { ff[.] }
-} else if("nfirs.data.rdata" %in% tolower(ff)){
-  fg <- "nfirs.data.rdata" %>% match(tolower(ff)) %>% { ff[.] }
-} else {
-  stop("The data files needed for the NFIRS analysis are not present!")
-}
-load(paste0(intmdt_dir, fg))
-rm(ff, fg)
+source("load.files.R")
+if(
+  load.data(final=c("NFIRS.RData"), 
+            data =c("nfirs.data.RData"), 
+            dir=intmdt_dir) == 1
+  ) stop("The data files needed for the NFIRS analysis are not present!")
 
-# keep <- c(ls(), "figs")
-keep2 <- c("data.summ", "selected", "structures", "details",
-           "stan.summ", "stan.summ.out", "struc.13", "cur.batt", "stan.model", "stan.out2", "stan.out3",
-           "switchdate", "stan.model1", "st_out1", "stan.model2", "st_out2", "tod.results",
-           "seasonality", "sev.results", "room.res", "loo_loo", "figs")
+rm(load.data)
 
+keep2 <- list(NFIRS=c("data.summ", "selected", "structures", "details", "stan.summ", 
+                      "stan.summ.out", "struc.13", "cur.batt", "stan.model", "stan.out2", 
+                      "stan.out3", "switchdate", "stan.model1", "st_out1", "stan.model2", 
+                      "st_out2", "tod.results", "seasonality", "sev.results", "room.res", 
+                      "loo_loo", "figs")
+              )
+if(! exists("figs")) figs <- list()
 ```
 
 ## Overall Statistics
 
 ```{r data-summary}
-if(! exists("figs")) figs <- list()
 figs$figure.00 <- 
     data.summ %>% filter(year > 2010, inc_type == '11') %>% 
       mutate(ratio.battery=battery_casualties / battery_fires, 
@@ -1111,6 +1107,8 @@ those.
 ```{r cleanup-02}
 # Save the relevant file, as below. Then delete everything if you are working in bookdown.
 # That means that a `bookdown` flag needs to be set somehow. And then unset at the end.
-save(list=intersect(keep2, ls()), file=paste0(intmdt_dir, "NFIRS.RData"))
+for(i in names(keep2)){
+  save(list=intersect(keep2[[i]], ls()), file=paste0(intmdt_dir, i, ".RData"))
+}
 rm(list=setdiff(ls(), keep))
 ```
