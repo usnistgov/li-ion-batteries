@@ -45,6 +45,8 @@ rm(ff, fg)
 keep2 <- c("incidents", "incident.txt", "incident.dtm1", "cluster_summary", "opt.k",
            "incident.lda", "incident.topics", "fire.summ", "fire.summ.lm", 
            "incidents.fire", "ai.results", "ai.summ")
+
+if(! exists("figs")) figs <- list()
 ```
 
 ```{r v-time}
@@ -471,7 +473,7 @@ cpsc.ai$st_abb[with(cpsc.ai, Lithium & Fire & is.na(st_abb) & ! is.na(ZIP))] <-
       c("OH", NA, "TX", "CA", NA, "PA", NA, NA, "CA", NA, NA)
 ```
 
-```{r ai-trend-chart}
+```{r ai-trend-chart0}
 s1 <- cpsc.ai %>% mutate(Year=lubridate::year(Report.Date)) %>% 
     filter(Lithium, Fire, Year < 2025) %>% 
     group_by(Year) %>% summarize(Fires=n()) %>% lm(log(Fires) ~ I(Year - 2010), data=.)
@@ -482,10 +484,10 @@ s2 <- c(s2, s2[1] + qnorm(c(0.025, 0.975)) * s2[2]) * 100
 Below shows the trend of reported Li ion battery fires over time. The number of 
 reported fires is increasing at the rate of about `r formatC(s2[1], digits=2)`&nbsp;% 
 (95&nbsp;% Confidence Interval: 
-`r formatC(s2[3], format="f", digits=1)` - `r formatC(s2[4], format="f", digits=1))`
+`r formatC(s2[3], format="f", digits=1)` - `r formatC(s2[4], format="f", digits=1)`
 per year.
 
-```{r ai-trend-chart}
+```{r ai-trend-chart1}
 figs$figure.12a <- cpsc.ai %>% mutate(Year=lubridate::year(Report.Date)) %>% 
     filter(Lithium, Fire, Year < 2025) %>% 
     group_by(Year) %>% summarize(Fires=n()) %>% 
