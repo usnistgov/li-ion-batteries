@@ -14,9 +14,6 @@ library(tidyr)
 library(dplyr)
 library(stringr)
 library(ggplot2)
-library(foreach)
-library(textmineR)
-library(maxLik)
 library(reticulate)
 library(ggtern)
 
@@ -29,36 +26,15 @@ if(! exists("intmdt_dir")){
   intmdt_dir <- "rdata/"
 }
 
-# Either load the completed data (currently in .RData, but henceforth in NFIRS.RData) 
-# or the relevant compiled data in NFIRS.Data.RData.
-ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
-if("cpsc.rdata" %in% tolower(ff)){
-  fg <- "cpsc.rdata" %>% match(tolower(ff)) %>% { ff[.] }
-} else if("cpsc.data.rdata" %in% tolower(ff)){
-  fg <- "cpsc.data.rdata" %>% match(tolower(ff)) %>% { ff[.] }
-} else {
-  stop("The data files needed for the NFIRS analysis are not present!")
-}
-load(paste0(intmdt_dir, fg))
-rm(ff, fg)
-
-keep2 <- c("incidents", "incident.txt", "incident.dtm1", "cluster_summary", "opt.k",
-           "incident.lda", "incident.topics", "fire.summ", "fire.summ.lm", 
-           "incidents.fire", "ai.results", "ai.summ")
-
-
-
-
 source("load.files.R")
-if(load.data(final=c("cpsc.RData"), 
+if(load.data(final=c("cpsc.RData", "cpsc.inc.RData"), 
              data =c("cpsc.data.RData"), 
              dir=intmdt_dir) == 1) stop("The data files needed for the Ca Fires analysis are not present!")
 
 rm(load.data)
 
-keep2 <- list(cpsc=c("incidents", "incident.txt", "incident.dtm1", "cluster_summary", "opt.k",
-                     "incident.lda", "incident.topics", "fire.summ", "fire.summ.lm", 
-                     "incidents.fire", "ai.results", "ai.summ")
+keep2 <- list(cpsc=c("incidents", "incident.txt", "ai.results", "ai.summ"),
+              cpsc.inc="cpsc.ai"
 )
 if(! exists("figs")) figs <- list()
 ```
@@ -244,7 +220,7 @@ cpsc.ai <- cbind(incidents[,c("Report.Date", "City", "State")],
          Fire=ai.summ1$fire$Yes == 10,
          Fire.all=ai.summ1$fire$No != 10)
 cpsc.ai$st_abb <- states$abb[match(tolower(cpsc.ai$State), tolower(states$name))]
-# These have been identifed by hand.
+# These have been identified by hand.
 cpsc.ai$st_abb[with(cpsc.ai, Lithium & Fire & is.na(st_abb) & ! is.na(ZIP))] <- 
       c("OH", NA, "TX", "CA", NA, "PA", NA, NA, "CA", NA, NA)
 ```
