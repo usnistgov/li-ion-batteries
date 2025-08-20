@@ -54,6 +54,8 @@ if(! all(ff)){
   cpsc.ai      <- e$cpsc.ai
   rm(e)
 }
+
+if(! exists("figs")) figs <- list()
 ```
 
 ## Connect to NFIRS
@@ -138,7 +140,7 @@ tmp <- lapply(cpsc.wk1, function(x) match(with(x, paste0(City, ", ", st_abb, ": 
                                     tolower())))
 
 overlap1 <- list()
-for(i in names(tmp)){
+for(i in names(cpsc.wk1)){
    overlap1[[i]] <- cbind(cpsc.wk1[[i]] %>% {.[(1:nrow(cpsc.wk1[[i]]))[! is.na(tmp[[i]])],
                                          c("City", "st_abb", "ZIP", "Report.Date", 
                                            "Location", "Severity")]},
@@ -231,7 +233,7 @@ yearly <- data.frame(Year=c(2011:2023, 0, -(1:5)),
                               filter(year > 2010, year < 2024) %>% with(table(year)), rep(NA, 6)),
                      nfirs=c(details %>% with(table(year)), rep(NA, 6)),
                      overlap=c(overlap %>% mutate(year=lubridate::year(Report.Date)) %>%
-                                 filter(year < 2024) %>% with(table(year)), rep(NA, 6)))
+                                 {.[.$year < 2024,]} %>% with(table(year)), rep(NA, 6)))
 
 # `yearly` is structured so that the first 13 rows are the years from 2011-2023
 # Year 0, then is the total of all years
