@@ -15,7 +15,6 @@ library(tidyr)
 library(dplyr)
 library(ggplot2)
 library(rstan)
-library(loo)
 
 keep <- c(ls(), "figs")
 
@@ -35,11 +34,9 @@ if(
 
 rm(load.data)
 
-keep2 <- list(NFIRS=c("data.summ", "selected", "structures", "details", "stan.summ", 
-                      "stan.summ.out", "struc.13", "cur.batt", "stan.model", "stan.out2", 
-                      "stan.out3", "switchdate", "stan.model1", "st_out1", "stan.model2", 
-                      "st_out2", "tod.results", "seasonality", "sev.results", "room.res", 
-                      "loo_loo", "figs")
+keep2 <- list(NFIRS=c("data.summ", "details", "selected", "structures", 
+                      "stan.summ", "stan.summ.out", "tod.results", "seasonality", 
+                      "sev.results", "sev.base", "room.res", "figs")
               )
 if(! exists("figs")) figs <- list()
 ```
