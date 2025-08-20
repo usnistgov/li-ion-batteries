@@ -18,7 +18,7 @@ library(dplyr)
 library(stringr)
 library(ggplot2)
 library(rstan)
-library(RPostgreSQL)
+# library(RPostgreSQL)
 
 keep <- c(ls(), "figs")
 
@@ -29,20 +29,11 @@ if(! exists("intmdt_dir")){
   intmdt_dir <- "rdata/"
 }
 
-# Either load the completed data (in CarFires.RData) 
-# or the relevant base data in CarFires.Data.RData.
-ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
-if("carfires.rdata" %in% tolower(ff)){
-  fg <- "carfires.rdata" %>% match(tolower(ff)) %>% { ff[.] }
-} else if("carfires.data.rdata" %in% tolower(ff)){
-  fg <- "carfires.data.rdata" %>% match(tolower(ff)) %>% { ff[.] }
-} else {
-  stop("The data files needed for the Car Fires analysis are not present!")
-}
-load(paste0(intmdt_dir, fg))
-rm(ff, fg)
-
-load(paste0(intmdt_dir, "stan.models.RData"))
+source("load.files.R")
+load.data(final=c("CarFires.RData", "stan.models.RData"), 
+          data =c("CarFires.data.RData", "stan.models.RData"), 
+          dir=intmdt_dir)
+rm(load.data)
 
 keep2 <- c("car.fires", "tesla", "test.cases", "results", "n.est", "car.actions",
            "nfpa", "stan.tesla", "stan.slope", "figs")
@@ -76,7 +67,7 @@ Action taken does not give anything useful. Basically, the only thing it says is
 # 
 # The data was downloaded and imported for use.
 
-tesla <- paste0(csv_dir, "Tesla Fire .xlsx") %>% openxlsx2::wb_to_df(1) %>% 
+tesla <- paste0(csv_dir, "Tesla Fire.xlsx") %>% openxlsx2::wb_to_df(1) %>% 
          { setNames(., c("ID", "Year", "Date", "Country", "State", "Model", "Fatalities", "Description", 
                          paste0("source", 1:(ncol(.) - 8)))) } %>% 
          filter(! is.na(Year)) %>% 
@@ -89,7 +80,7 @@ tesla <- paste0(csv_dir, "Tesla Fire .xlsx") %>% openxlsx2::wb_to_df(1) %>%
 #The data used here is downloaded from the NFPA
 # 
 # The data was downloaded and imported for use.
-nfpa <- openxlsx2::read_xlsx("csv/new_sales.xlsx", 4)
+nfpa <- openxlsx2::read_xlsx(paste0(csv_dir, "new_sales.xlsx"), 4)
 nfpa <- car.summ %>% full_join(nfpa %>% select(Year, Fires, Deaths, Injuries),
                        by=join_by(year==Year)) %>% 
              setNames(c("Year", "NFIRS", "VINs", "NFPA", "Deaths", "Injuries"))
@@ -149,10 +140,9 @@ test.cases <- out.cases %>%
               Electric=`Electrification Level`,
               Battery=`Battery Type`,
               .keep="unused")
+```
 
-# test.cases$li.battery <- (! is.na(test.cases$Fuel1) & test.cases$Fuel1 == 'Electric') | 
-#                          (! is.na(test.cases$Fuel2) & test.cases$Fuel2 == 'Electric')
-
+```{r car-fire-types, eval=! "Tesla" %in% names(car.fires)}
 car.fires$Tesla <- str_detect(car.fires$mob_vin_no, '^(5YJ|7SA)')
 car.fires$BEV   <- car.fires$mob_vin_no %in% test.cases$vin[str_detect(test.cases$Electric, 'BEV')]
 car.fires$Plugin<- car.fires$mob_vin_no %in% test.cases$vin[str_detect(test.cases$Electric, 'BEV|PHEV')]
