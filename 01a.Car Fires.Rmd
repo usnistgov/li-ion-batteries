@@ -30,9 +30,10 @@ if(! exists("intmdt_dir")){
 }
 
 source("load.files.R")
-load.data(final=c("CarFires.RData", "stan.models.RData", "vin.data.RData", "CarFires.stan.RData"), 
-          data =c("CarFires.data.RData", "stan.models.RData", "vin.data.RData"), 
-          dir=intmdt_dir)
+if(load.data(final=c("CarFires.RData", "stan.models.RData", "vin.data.RData", "CarFires.stan.RData"), 
+             data =c("CarFires.data.RData", "stan.models.RData", "vin.data.RData"), 
+             dir=intmdt_dir) == 1) stop("The data files needed for the Ca Fires analysis are not present!")
+
 rm(load.data)
 
 keep2 <- list(CarFires=c("car.fires", "tesla", "results", "n.est", "car.actions", "nfpa", "figs"),
