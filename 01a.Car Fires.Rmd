@@ -30,13 +30,15 @@ if(! exists("intmdt_dir")){
 }
 
 source("load.files.R")
-load.data(final=c("CarFires.RData", "stan.models.RData"), 
-          data =c("CarFires.data.RData", "stan.models.RData"), 
+load.data(final=c("CarFires.RData", "stan.models.RData", "vin.data.RData", "CarFires.stan.RData"), 
+          data =c("CarFires.data.RData", "stan.models.RData", "vin.data.RData"), 
           dir=intmdt_dir)
 rm(load.data)
 
-keep2 <- c("car.fires", "tesla", "test.cases", "results", "n.est", "car.actions",
-           "nfpa", "stan.tesla", "stan.slope", "figs")
+keep2 <- list(CarFires=c("car.fires", "tesla", "results", "n.est", "car.actions", "nfpa", "figs"),
+              CarFires.stan=c("stan.slope", "stan.tesla"),
+              vin.data="test.cases"
+)
 ```
 
 This looks at action taken for Li ion vehicle fires to see if there is anything 
@@ -536,8 +538,10 @@ vehicle fires, the fire estimates made excluding Florida are likely more reliabl
 
 
 ```{r cleanup-01a}
-# Save the relevant file, as below. Then delete everything if you are working in bookdown.
+# Save the relevant file(s), as below. Then delete everything if you are working in bookdown.
 # That means that a `bookdown` flag needs to be set somehow. And then unset at the end.
-save(list=intersect(keep2, ls()), file=paste0(intmdt_dir, "CarFires.RData"))
+for(i in names(keep2)){
+  save(list=intersect(keep2[[i]], ls()), file=paste0(intmdt_dir, i, ".RData"))
+}
 rm(list=setdiff(ls(), keep))
 ```
