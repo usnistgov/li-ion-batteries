@@ -2,5 +2,7 @@ html/
 stuff/
 Papers/
 _book/
+_bookdown_files
+_main_files
 .RData
 .Rhistory
