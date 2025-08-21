@@ -32,16 +32,9 @@ perform the analysis. These must be present for the scripts to run.
 |ggplot2     |3.5.2   |
 |openxlsx2   |1.16    |
 |rstan       |2.32.7  |
+|maxLik      |1.5-2.1 |
 |reticulate  |1.42.0  |
 |ggtern      |3.5.0   |
-
-In addition, the following packages are highly recommended if you intend to
-run the scripts from the raw data.
-
-|Package     |Version |
-|:-----------|:-------|
-|parallel    |4.5.0   |
-|doParallel  |1.0.17  |
 
 The AI analysis in `CPSC.Rmd` uses Python 3.11.8 which in turn uses 
 the following Python packages:
