@@ -15,14 +15,6 @@ The `rdata` directory contains `RData` files, which are the native save file
 format for R. Those files contain a mix of the raw data (reformatted from the 
 data in the `csv` directory) and analytical results.
 
-Four additional files are not included in this GitHub repository because they 
-are too large. The file, `NFIRS.RData`, would be used in the runs from intermediate
-files described below, and would *considerably* shorten running times. It is 
-available on request from the author and would go in the `rdata` subdirectory.
-The files `CarFires.RData`, `CarFires.data.RData`, and `car.fires.csv`, are
-*required* for the Car Fires analysis. but they are also too large for GitHub.
-They are also available on request from the author.
-
 The scripts are R Markdown files, with the code in R. A number of packages
 are used either to run the `Rmd` files or are used by the `Rmd` files to 
 perform the analysis. These must be present for the scripts to run.
@@ -36,12 +28,12 @@ perform the analysis. These must be present for the scripts to run.
 |dplyr       |1.1.4   |
 |stringr     |1.5.1   |
 |magrittr    |2.0.3   |
+|lubridate   |1.9.4   |
 |ggplot2     |3.5.2   |
-|foreach     |1.5.2   |
-|maxLik      |1.5-2.1 |
-|textmineR   |3.0.5   |
+|openxlsx2   |1.16    |
 |rstan       |2.32.7  |
-|loo         |2.8.0   |
+|reticulate  |1.42.0  |
+|ggtern      |3.5.0   |
 
 In addition, the following packages are highly recommended if you intend to
 run the scripts from the raw data.
@@ -50,6 +42,16 @@ run the scripts from the raw data.
 |:-----------|:-------|
 |parallel    |4.5.0   |
 |doParallel  |1.0.17  |
+
+The AI analysis in `CPSC.Rmd` uses Python 3.11.8 which in turn uses 
+the following Python packages:
+
+|Package     |Version   |
+|:-----------|:---------|
+|os          |<built in>|
+|re          |<built in>|
+|httpx       |  0.28.1  |
+|openai      |  1.99.2  |
 
 After installation of R and the essential packages (and dependencies), there 
 are two basic approaches that can be used duplicate the analysis, each with two
@@ -61,15 +63,13 @@ scripts can be run using the intermediate outputs already saved. Each of the
 four approaches to running this is described below.
 
 
-
 ## Complete Run from intermediate files
 
 This is the simplest approach. 
 
 * Download all the files from GitHub.
 * Make sure the `csv` and `rdata` directories exist
-* Make sure the files in the `csv` and `rdata` directories are present, 
-including if desired, the `NFIRS.RData` file mentioned above
+* Make sure the files in the `csv` and `rdata` directories are present
 * make sure there is no `_main.md` file in the base directory
 * Run the following code in `R`
 
@@ -108,8 +108,7 @@ deleted above as well as producing a `_main.html` file as output.
 
 * Download all the files from GitHub.
 * Make sure the `csv` and `rdata` directories exist
-* Make sure the files in the `csv` and `rdata` directories are present, 
-including if desired, the `NFIRS.RData` file mentioned above
+* Make sure the files in the `csv` and `rdata` directories are present
 * Run the following code in `R`
 
 ```
@@ -127,7 +126,7 @@ This will produce a `0x.[scriptname].html` file as its output.
 
 Again, running from the base csv files means that all the intermediate files 
 will be generated (and saved) by the script. Running time will vary significant
-based on the script file you run. `02.NFIRS.Rmd` will likely take a very long 
+based on the script file you run. `03.CPSC.Rmd` will likely take a very long 
 time, while `05.FAA_Air.Rmd` and `06.Bess.Rmd` will run about as fast as they
 would otherwise.
 
@@ -141,10 +140,10 @@ File to delete is listed in the following table. Note that the relevant
 | Script | Delete | Keep |
 |--------|--------|------|
 | 01.Data.Rmd | - | - |
-| 01a.Car Fires.Rmd | CarFires.RData | CarFires.data.RData |
+| 01a.Car Fires.Rmd | CarFires.RData, CarFires.stan.RData | CarFires.data.RData, stan.models.RData, vin.data.RData |
 | 02.NFIRS.Rmd | NFIRS.RData | nfirs.data.RData |
-| 03.CPSC.Rmd | cpsc.RData | cpsc.data.RData |
-| 04.Recapture.Rmd | recapture.RData | recapture.data.RData |
+| 03.CPSC.Rmd | cpsc.RData, cpsc.inc.RData | cpsc.data.RData |
+| 04.Recapture.Rmd | recapture.RData | recapture.data.RData, cpsc.inc.RData, NFIRS.RData, stan.models.RData |
 | 05.FAA_Air.Rmd | faa_air.RData | - |
 | 06.BESS.Rmd | bess.RData | - |
 
