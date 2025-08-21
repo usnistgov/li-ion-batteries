@@ -25,14 +25,14 @@ if(! exists("intmdt_dir")){
   intmdt_dir <- "rdata/"
 }
 
-ff <- list.files(intmdt_dir) %>% grep("RData", ., ignore.case=T, value=T)
-if("bess.rdata" %in% tolower(ff)){
-  fg <- "bess.rdata" %>% match(tolower(ff)) %>% { ff[.] }
-  load(paste0(intmdt_dir, fg))
-}
-rm(ff, fg)
+source("load.files.R")
+load.data(final=c("bess.rdata"), 
+            dir=intmdt_dir)
 
- keep2 <- c("bess", "bess.model", "figs")
+rm(load.data)
+
+keep2 <- list(bess=c("bess", "bess.model", "figs"))
+if(! exists("figs")) figs <- list()
 ```
 
 ```{r bess}
@@ -105,6 +105,8 @@ print(figs$figure.42)
 ```
 
 ```{r cleanup-06}
-save(list=intersect(keep2, ls()), file=paste0(intmdt_dir, "bess.RData"))
+for(i in names(keep2)){
+  save(list=intersect(keep2[[i]], ls()), file=paste0(intmdt_dir, i, ".RData"))
+}
 rm(list=setdiff(ls(), keep))
 ```
