@@ -597,8 +597,8 @@ data {
   int<lower=0>       S1;         // Number of cars in sample 1
   int<lower=0>       S2;         // Number of cars in sample 2
   int<lower=0>       S12;        // Number of cars in both samples
-  real               alpha;
-  real               scale_p;
+  real               alpha;      // Parameters used when S12 = 0.
+  real               scale_p;    // Parameters used when S12 = 0.
 }
 
 transformed data {
