@@ -322,10 +322,10 @@ rm(tmp, i, nm)
 ```
 
 ```{r fires-fig}
-figs$ev <- n.est %>% filter(! is.na(est) & ! is.na(Year) & name != "Tesla") %>% 
-                ggplot() + aes(x=Year, y=est, ymin=lcl, ymax=ucl, group=State, color=State) + 
-                   geom_point() + geom_line() + geom_errorbar(width=0.05) + facet_grid(name ~ .) + 
-                   scale_y_log10() + ylab("Estimated Number of Fires")
+figs$ev <- n.est %>% filter(! is.na(est) & ! is.na(Year) & name != "Tesla", State != "FL") %>% 
+           ggplot() + aes(x=Year, y=est, ymin=lcl, ymax=ucl) + geom_point() + geom_errorbar(width=0.05) +
+           geom_line(aes(y=slope)) + geom_ribbon(aes(ymin=s.lcl, ymax=s.ucl), alpha=0.3) + 
+           facet_grid(name ~ State) + scale_y_log10() + ylab("Estimated Number of Fires") + theme_bw()
 ```
 
 The table below lists the Bayesian estimates for the number of fires for each

@@ -309,6 +309,7 @@ for(i in names(stan.con.fit)){
 
 
 ```{r con-stan-res1}
+ndx <- (1:nrow(yearly))[yearly$Year > 2016 & yearly$Year < 2024]
 yearly.stan1 <- yearly[ndx,1:4]
 
 yearly.stan1 <- cbind(yearly.stan1, 
@@ -357,7 +358,7 @@ print(figs$figure.21)
 ```
 
 
-```{r p-nfirs-graph}
+```{r p-nfirs-graph, eval=F}
 figs$figure.22 <- yearly.stan %>% filter(Year > 2000) %>% ggplot() + 
           aes(x=Year, y=p.nfirs, ymin=p.nfirs.lcl, ymax=p.nfirs.ucl) + 
           geom_point() + geom_line() + geom_ribbon(alpha=0.3) +
@@ -368,7 +369,7 @@ print(figs$figure.22)
 ```
 
 
-```{r p-cpsc-graph}
+```{r p-cpsc-graph, eval=F}
 figs$figure.23 <- yearly.stan %>% filter(Year > 2000) %>% ggplot() + 
           aes(x=Year, y=p.cpsc, ymin=p.cpsc.lcl, ymax=p.cpsc.ucl) + 
           geom_point() + geom_line() + geom_ribbon(alpha=0.3) +

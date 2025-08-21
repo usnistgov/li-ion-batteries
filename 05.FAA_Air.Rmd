@@ -130,7 +130,7 @@ air.stan <- hot.air %>% mutate(year=lubridate::year(Incident.Date)) %>%
 
 
 ```{r air-stan-plot}
-hot.air %>% mutate(year=lubridate::year(Incident.Date)) %>% 
+figs$figure.31 <- hot.air %>% mutate(year=lubridate::year(Incident.Date)) %>% 
   filter(year > 2010, year < 2025) %>% 
   group_by(year) %>% summarize(incidents=n()) %>% 
   mutate(growth=predict(air.lm), 
@@ -143,7 +143,9 @@ hot.air %>% mutate(year=lubridate::year(Incident.Date)) %>%
          l.ucl=rstan::extract(air.stan, c("year_est"))[[1]] %>% apply(2, function(x) quantile(x, 0.975))) %>% 
   ggplot() + aes(x=year, y=incidents) + geom_point() + geom_line() + 
              geom_line(aes(y=logit), color="green") + 
-             geom_ribbon(aes(ymin=l.lcl, ymax=l.ucl), color="green", alpha=0.3)
+             geom_ribbon(aes(ymin=l.lcl, ymax=l.ucl), color="green", alpha=0.3) +
+             scale_x_continuous(breaks=2010 + 0:3 * 5, minor_breaks=2010:2025)  + theme_bw()
+print(figs$figure.31)
 ```
 
 This fits a logistic (s-shaped) curve to the number of incidents. The number 

@@ -94,8 +94,8 @@ Number of incidents over time is shown in the figure below.
 
 ```{r bess.time}
 figs$figure.41 <- bess.tab %>% ggplot() + aes(x=q, y=n) + geom_point() + geom_line() +
-             xlab("Time") + ylab("Count") + scale_x_continuous(breaks=2010:2025) + 
-             theme_bw()
+             xlab("Time") + ylab("Count") + theme_bw() + 
+             scale_x_continuous(breaks=2010:2025, minor_breaks=2010 + 0:100 / 4)
 print(figs$figure.41)
 ```
 
