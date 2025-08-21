@@ -210,7 +210,7 @@ seasonality <- list(month=details %>% filter(prop_use %in% c('419', '429')) %>%
                       glm(fires ~ 0 + yr + month, data=., family=quasipoisson),
                     seas=details %>% filter(prop_use %in% c('419', '429')) %>% 
                       mutate(yr = year - 2015, season=factor(month %/% 3 %>% mod(4))) %>% 
-                      group_by(yr, season) %>% summarize(fires=n()) %>%
+                      group_by(yr, month, season) %>% summarize(fires=n()) %>%
                       glm(fires ~ 0 + yr + season, data=., family=quasipoisson))
 
 season.df <- summary(seasonality$month)$coefficients %>% as_tibble(rownames="var") %>% as.data.frame() %>%
@@ -241,11 +241,11 @@ figs$figure.08 <- season.df %>% ggplot() + aes(x=var, y=Estimate, ymin=lcl, ymax
                  geom_ribbon(aes(ymin=seas.lcl, ymax=seas.ucl, group="Season", color="Season"), alpha=0.3) + 
                  theme_bw()
 
-figs$figure08a <- season.df %>% ggplot() + aes(x=var, y=Estimate, ymin=lcl, ymax=ucl, group="Month", color="Month") + 
+figs$figure08a <- season.df %>% ggplot() + aes(x=var, y=Estimate, ymin=lcl, ymax=ucl, group="Month") + 
                  geom_point() + geom_errorbar(width=0.1) + 
-                 geom_step(aes(y=season, group="Season", color="Season"), position=position_nudge(x=-.5)) +
-                 geom_ribbon(aes(ymin=seas.lcl, ymax=seas.ucl, group="Season", color="Season"), alpha=0.3) + 
-                 theme_bw()
+                 geom_step(aes(y=season, group="Season"), position=position_nudge(x=-.5)) +
+                 geom_ribbon(aes(ymin=seas.lcl, ymax=seas.ucl, group="Season"), alpha=0.3) + 
+                 theme_bw() + xlab("")
 
 figs$figure.08
 ```
@@ -346,7 +346,7 @@ for all battery fires, home battery fires, and all battery structure fires that
 are not in homes.
 
 ```{r fig6a}
-figs$figure.7b
+figs$figure.09b
 ```
 
 This specifically compares those values for home v. not-home fires. Home fires
@@ -400,9 +400,10 @@ room.df$ucl <- with(room.df, val + qnorm(0.975) * se)
 room.df$room <- factor(room.df$room, 
                        levels=room.df$room[order(room.df$val, decreasing=TRUE)])
 
-figs$figure.0a <- room.df %>% ggplot() + aes(x=room, y=val, ymin=lcl, ymax=ucl) +
-            geom_point() + geom_errorbar(width=0.1) + 
-            scale_x_discrete(guide = guide_axis(angle = 90)) + xlab("") + ylab("")
+figs$figure.0a <- room.df %>% filter(room != 'Nonresidential') %>% 
+            ggplot() + aes(x=room, y=val, ymin=lcl, ymax=ucl) + geom_point() + 
+              geom_errorbar(width=0.1) + theme_bw() + 
+              scale_x_discrete(guide = guide_axis(angle = 90)) + xlab("") + ylab("")
 
 figs$figure.0a
 ```
