@@ -46,6 +46,10 @@ the following Python packages:
 |httpx       |  0.28.1  |
 |openai      |  1.99.2  |
 
+To run the AI analysis you will need access to a LLM API (via OpenAI). 
+The version used for this analysis is described in the associated paper,
+but may not be accessible to others.
+
 After installation of R and the essential packages (and dependencies), there 
 are two basic approaches that can be used duplicate the analysis, each with two
 variants. First any of the R Markdown files can be processed individually using
