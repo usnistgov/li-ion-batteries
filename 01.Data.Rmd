@@ -597,11 +597,12 @@ incident.txt <- with(incidents,
 
 ```{stan base-1, output.var="stan.model"}
 data {
-  int<lower=0>       S1;         // Number of cars in sample 1
-  int<lower=0>       S2;         // Number of cars in sample 2
-  int<lower=0>       S12;        // Number of cars in both samples
-  real               alpha;      // Parameters used when S12 = 0.
-  real               scale_p;    // Parameters used when S12 = 0.
+  int<lower=0>          S1;         // Number of cars in sample 1
+  int<lower=0>          S2;         // Number of cars in sample 2
+  int<lower=0>          S12;        // Number of cars in both samples
+  int<lower=0, upper=1> zeros;      // = 0: Zeros excluded; =1: zeros allowed
+  real                  alpha;      // Parameters used when S12 = 0 and zeros = 1
+  real                  scale_p;    // Parameters used when S12 = 0 and zeros = 1
 }
 
 transformed data {
@@ -640,11 +641,15 @@ model {
             + S1 * log(p[1]) + (N - S1) * log(1 - p[1]);
   target += lgamma(N + 1) - lgamma(S2 + 1) - lgamma(N - S2 + 1)
             + S2 * log(p[2]) + (N - S2) * log(1 - p[2]);
-  if(S12 == 0){
-    theta ~ beta((1 - p[which]) * scale_p, p[which] * scale_p);
+  if(zeros){
+    if(S12 == 0){
+      theta ~ beta((1 - p[which]) * scale_p, p[which] * scale_p);
+    } else {
+      target += lgamma(S1 + 1) - lgamma(S12 + 1) - lgamma(S1 - S12 + 1)
+                + S12 * log(p[2]) + (S1 - S12) * log(1 - p[2]);
+    }
   } else {
-    target += lgamma(S1 + 1) - lgamma(S12 + 1) - lgamma(S1 - S12 + 1)
-              + S12 * log(p[2]) + (S1 - S12) * log(1 - p[2]);
+    target -= log(1 - (1 - p[1] * p[2]) ^ N);
   }
 }
 
