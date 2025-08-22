@@ -185,7 +185,8 @@ rm(uuu, i, ndx)
 
 figs$figure.07 <- tmp.df %>% ggplot() + aes(x=tod, y=val, ymin=lcl, ymax=ucl) +
            geom_point() + geom_line() + geom_ribbon(alpha=0.3) + facet_wrap(~ group) +
-           scale_x_continuous(breaks=0:4 * 6, minor_breaks=0:24) + theme_bw()
+           scale_x_continuous(breaks=0:4 * 6, minor_breaks=0:24) + 
+           xlab("Time of Day") + ylab("Relative Likelihood") + theme_bw()
 
 figs$figure.07
 ```
@@ -245,7 +246,7 @@ figs$figure08a <- season.df %>% ggplot() + aes(x=var, y=Estimate, ymin=lcl, ymax
                  geom_point() + geom_errorbar(width=0.1) + 
                  geom_step(aes(y=season, group="Season"), position=position_nudge(x=-.5)) +
                  geom_ribbon(aes(ymin=seas.lcl, ymax=seas.ucl, group="Season"), alpha=0.3) + 
-                 theme_bw() + xlab("")
+                 scale_x_discrete(guide = guide_axis(angle = 90)) + theme_bw() + xlab("")
 
 figs$figure.08
 ```
