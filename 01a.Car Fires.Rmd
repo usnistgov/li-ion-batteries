@@ -273,7 +273,7 @@ for(i in 1:nrow(n.est)){
   if(with(n.est, is.na(Year[i]) | Year[i] > 2018) & vv[i] > 0){
     st.data <- with(n.est, list(S1=Tesla[i], S2=value[i], 
                                 S12=ifelse(is.na(Both[i]), 0, Both[i]),
-                                alpha=0.1, scale_p=10))
+                                zeros=0, alpha=0.1, scale_p=10))
     stan.tesla[[nm[i]]] <- sampling(stan.model, data=st.data, refresh=0)
     n.est[i,7:10] <- stan.tesla[[nm[i]]] %>% extract("N") %>% magrittr::extract2(1) %>% 
                     {c(mean(.), quantile(., c(0.025, 0.975, 0.5)))} %>% t()
