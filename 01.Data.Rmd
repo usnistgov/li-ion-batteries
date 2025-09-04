@@ -38,6 +38,48 @@ cpsc_url <- "https://www.saferproducts.gov/"
 tesla_fires <- "https://www.tesla-fire.com/"
 ```
 
+```{sql b, connection=ipsdi.nfirs, output.var="data.summ.b", eval=do.sql}
+WITH t AS (
+  SELECT DISTINCT
+    code_value,
+	code_descr
+  FROM codelookup
+  WHERE fieldid ~* 'inc_type'
+), p AS (
+  SELECT DISTINCT
+    code_value,
+	code_descr
+  FROM codelookup
+  WHERE fieldid ~* 'prop_use'
+)
+SELECT 
+  extract(year from inc_date) as year,
+  t.code_descr AS inc_type, 
+  CASE 
+    WHEN prop_use in ('965', '880', '881', '882') THEN 'Parking'
+    WHEN substring(prop_use from 1 for 2) in ('92', '96') THEN 'Roadway'
+	ELSE p.code_descr
+  END as prop_use,
+  count(*) as fires,
+  sum(
+    CASE
+	  WHEN equip_inv = '229' THEN 1
+	  ELSE 0
+	END) AS battery
+
+FROM fireincident f JOIN basicincident b USING (state, fdid, inc_date, inc_no, exp_no)
+     LEFT JOIN t ON substring(b.inc_type from 1 for 2) = t.code_value
+     LEFT JOIN p ON substring(b.prop_use from 1 for 1) = p.code_value
+GROUP BY
+  extract(year from inc_date),
+  t.code_descr, 
+  CASE 
+    WHEN prop_use in ('965', '880', '881', '882') THEN 'Parking'
+    WHEN substring(prop_use from 1 for 2) in ('92', '96') THEN 'Roadway'
+	ELSE p.code_descr
+  END
+```
+
 ```{sql a, connection=ipsdi.nfirs, output.var="data.summ", eval=do.sql}
 /*
   This provides summary information about the number of battery fires in NFIRS,
@@ -538,6 +580,7 @@ WHERE
 # Since all the sql queries were actually conducted off-line (and are disabled above)
 # this loads the downloaded csv files and is what actually loads the data
 data.summ <- paste0(csv_dir, "summary.csv") %>% read.csv()
+data.summ.b <- paste0(csv_dir, "summary.b.csv") %>% read.csv()
 selected <- paste0(csv_dir, "selected.csv") %>% read.csv()
 tesla <- paste0(csv_dir, "tesla.summ.csv") %>% read.csv()
 tesla_detail <- paste0(csv_dir, "Tesla.csv") %>% read.csv()
@@ -729,7 +772,7 @@ generated quantities {
 ```
 
 ```{r cleanup-01}
-save(data.summ, selected, structures, details, file=paste0(intmdt_dir, "nfirs.data.RData"))
+save(data.summ, data.summ.b, selected, structures, details, file=paste0(intmdt_dir, "nfirs.data.RData"))
 save(car.fires, car.summ, car.actions, file=paste0(intmdt_dir, "CarFires.data.RData"))
 save(incidents, incident.txt, file=paste0(intmdt_dir, "cpsc.data.RData"))
 save(incidents, details, file=paste0(intmdt_dir, "recapture.data.RData"))

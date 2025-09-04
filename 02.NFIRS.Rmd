@@ -34,7 +34,7 @@ if(
 
 rm(load.data)
 
-keep2 <- list(NFIRS=c("data.summ", "details", "selected", "structures", 
+keep2 <- list(NFIRS=c("data.summ", "data.summ.b", "details", "selected", "structures", 
                       "stan.summ", "stan.summ.out", "tod.results", "seasonality", 
                       "sev.results", "sev.base", "room.res", "figs")
               )
@@ -326,7 +326,7 @@ figs$figure.09a <- sev.df %>% filter(group != "all") %>%
            mutate(val=plogis(val), lcl=plogis(lcl), ucl=plogis(ucl))%>%
            ggplot() + aes(x=sev, y=val, ymin=lcl, ymax=ucl, group=group, color=group) +
            geom_point() + geom_errorbar(width=.05) + 
-           xlab("") + ylab("Probability") + theme_bw()
+           xlab("Flame Spread") + ylab("Probability") + theme_bw()
 
 
 figs$figure.09b <- sev.base$summary[,-3] %>% 
@@ -337,7 +337,7 @@ figs$figure.09b <- sev.base$summary[,-3] %>%
    mutate(val=plogis(val), lcl=plogis(lcl), ucl=plogis(ucl))%>%
    ggplot() + aes(x=sev, y=val, ymin=lcl, ymax=ucl, group=group, color=group) +
       geom_point() + geom_errorbar(width=.05) + 
-      xlab("") + ylab("Probability") + theme_bw()
+      xlab("Flame Spread") + ylab("Probability") + theme_bw()
 
 figs$figure.09
 ```
@@ -404,7 +404,7 @@ room.df$room <- factor(room.df$room,
 figs$figure.0a <- room.df %>% filter(room != 'Nonresidential') %>% 
             ggplot() + aes(x=room, y=val, ymin=lcl, ymax=ucl) + geom_point() + 
               geom_errorbar(width=0.1) + theme_bw() + 
-              scale_x_discrete(guide = guide_axis(angle = 90)) + xlab("") + ylab("")
+              scale_x_discrete(guide = guide_axis(angle = 90)) + xlab("") + ylab("Relative Likelihood")
 
 figs$figure.0a
 ```
