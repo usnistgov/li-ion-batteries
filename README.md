@@ -63,7 +63,7 @@ paper, but may not be accessible to others.
 
 Python and R are languages that are commonly used for scientific work, 
 and are freely available from their respective organizations 
-(<www.python.org> and <cran.r-project.org>). Packages are available 
+(<https://www.python.org> and <https://cran.r-project.org>. Packages are available 
 through their respective package management ecosystems.
 
 After installation of R and the essential packages (and dependencies), there 
